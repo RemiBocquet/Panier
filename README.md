@@ -76,30 +76,6 @@ La liste est triée par rayon de supermarché (fruits & légumes, viandes & pois
 boulangerie, épicerie salée/sucrée, boissons, surgelés, entretien) via un dictionnaire de mots-clés
 français dans `index.html` (constante `RAYONS`) — facile à compléter.
 
-## Mettre à jour l'application
-
-**Tu n'as jamais besoin de désinstaller / réinstaller.** Il suffit de pousser les fichiers modifiés
-sur GitHub ; le téléphone récupère la nouvelle version tout seul.
-
-Comment ça marche : le service worker sert `index.html` en **réseau d'abord** (cache uniquement en
-secours hors-ligne), et il est enregistré avec `updateViaCache:'none'` pour que le navigateur ne
-garde pas un vieux `sw.js`. Concrètement :
-
-- **fermer puis rouvrir l'app** suffit dans la quasi-totalité des cas ;
-- l'app revérifie aussi à chaque retour au premier plan, et toutes les heures si elle reste ouverte ;
-- si c'est le service worker lui-même qui a changé, un bandeau « Nouvelle version — appuyer pour
-  recharger » apparaît : un appui et c'est fait ;
-- Réglages → **Rechercher une mise à jour** force la vérification et affiche la version installée.
-
-Tu n'as plus à incrémenter `VERSION` dans `sw.js` pour publier une modification de l'app : ce
-numéro ne sert plus qu'à purger les anciens caches quand tu modifies la stratégie de cache
-elle-même.
-
-Si jamais l'app semble figée sur une vieille version (rare, typiquement après une coupure réseau
-au mauvais moment) : Chrome → ⋮ → Paramètres du site → Panier → Effacer les données. Tes recettes
-et listes sont dans IndexedDB, qui n'est pas touché par le vidage du cache — mais fais un export
-JSON avant, par prudence.
-
 ## Synchroniser deux téléphones (optionnel)
 
 Désactivé par défaut. Une fois activé, les recettes, repas et courses sont partagés entre tes
