@@ -216,6 +216,31 @@ function dbDel(s,id){return new Promise((res,rej)=>{const r=tx(s,'readwrite').de
 function dbClear(s){return new Promise((res,rej)=>{const r=tx(s,'readwrite').clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
+/* --- Horodatage et suppressions douces (indispensables à la synchro) ---
+   Chaque enregistrement porte un updatedAt. Une suppression laisse une "pierre tombale"
+   {id, deleted:true, updatedAt} : sans elle, l'autre téléphone re-pousserait l'objet effacé. */
+const SYNCED_STORES=['recipes','meals','shopping'];
+async function save(store,obj){obj.updatedAt=Date.now();await dbPut(store,obj);syncSoon();return obj;}
+async function softDelete(store,id){
+  const t={id,deleted:true,updatedAt:Date.now()};
+  await dbPut(store,t);
+  syncSoon();
+  return t;
+}
+async function tombstoneAll(store){
+  const all=await dbGetAll(store);
+  for(const r of all){ if(!r.deleted) await dbPut(store,{id:r.id,deleted:true,updatedAt:Date.now()}); }
+}
+// Purge des pierres tombales anciennes (au-delà de 90 j, tous les appareils ont convergé).
+async function purgeTombstones(){
+  const cutoff=Date.now()-90*24*3600*1000;
+  for(const st of SYNCED_STORES){
+    for(const r of await dbGetAll(st)){
+      if(r.deleted&&(r.updatedAt||0)<cutoff)await dbDel(st,r.id);
+    }
+  }
+}
+
 /* ---------- Unités & parsing ---------- */
 const UNITS=[['kg','kg'],['kilogramme','kg'],['kilogrammes','kg'],['kilo','kg'],['kilos','kg'],['g','g'],['gr','g'],['gramme','g'],['grammes','g'],['mg','mg'],['l','l'],['litre','l'],['litres','l'],['dl','dl'],['cl','cl'],['ml','ml'],['millilitre','ml'],['millilitres','ml'],['càs','c. à soupe'],['cas','c. à soupe'],['cuillère à soupe','c. à soupe'],['cuillères à soupe','c. à soupe'],['cuillere à soupe','c. à soupe'],['cuilleres à soupe','c. à soupe'],['c. à soupe','c. à soupe'],['c à soupe','c. à soupe'],['cs','c. à soupe'],['càc','c. à café'],['cac','c. à café'],['cuillère à café','c. à café'],['cuillères à café','c. à café'],['cuillere à café','c. à café'],['cuilleres à café','c. à café'],['c. à café','c. à café'],['c à café','c. à café'],['cc','c. à café'],['pincée','pincée'],['pincées','pincée'],['gousse','gousse'],['gousses','gousse'],['tranche','tranche'],['tranches','tranche'],['sachet','sachet'],['sachets','sachet'],['boîte','boîte'],['boîtes','boîte'],['boite','boîte'],['boites','boîte'],['botte','botte'],['bottes','botte'],['brin','brin'],['brins','brin'],['feuille','feuille'],['feuilles','feuille'],['verre','verre'],['verres','verre'],['tasse','tasse'],['tasses','tasse'],['pot','pot'],['pots','pot'],['bouquet','bouquet'],['bouquets','bouquet'],['morceau','morceau'],['morceaux','morceau'],['boule','boule'],['boules','boule']];
 const UNIT_MAP=UNITS.slice().sort((a,b)=>b[0].length-a[0].length);
@@ -250,7 +275,13 @@ const rayonOrder=id=>{const i=RAYONS.findIndex(x=>x[0]===id);return i<0?RAYONS.l
 
 /* ---------- État ---------- */
 let recipes=[],meals=[],shopping=[],settings={id:'app',proxy:''};
-async function loadAll(){recipes=await dbGetAll('recipes');meals=await dbGetAll('meals');shopping=await dbGetAll('shopping');const s=await dbGet('settings','app');if(s)settings=s;}
+const alive=a=>a.filter(r=>!r.deleted);
+async function loadAll(){
+  recipes=alive(await dbGetAll('recipes'));
+  meals=alive(await dbGetAll('meals'));
+  shopping=alive(await dbGetAll('shopping'));
+  const s=await dbGet('settings','app');if(s)settings=s;
+}
 
 /* ---------- Agrégation courses ---------- */
 function findItemByKey(key){return shopping.find(i=>i.key===key&&!i.checked);}
@@ -260,25 +291,25 @@ async function addIngredientToShopping(ing,scale,mealId,recipeName){
   const base=ing.qty!=null?toBase(ing.qty*scale,unit):null;
   const key=aggKey(name,unit);let it=findItemByKey(key);
   if(!it){it={id:uid(),key,name,unit,cls,category:categorize(name),checked:false,manual:false,manualBase:null,sources:[]};shopping.push(it);}
-  it.sources.push({mealId,recipeName,base});await dbPut('shopping',it);
+  it.sources.push({mealId,recipeName,base});await save('shopping',it);
 }
 async function removeMealContributions(mealId){
   for(const it of shopping.slice()){
     const before=it.sources.length;
     it.sources=it.sources.filter(s=>s.mealId!==mealId);
     if(it.sources.length===before)continue;
-    if(it.sources.length===0&&!it.manual){shopping=shopping.filter(x=>x.id!==it.id);await dbDel('shopping',it.id);}
-    else await dbPut('shopping',it);
+    if(it.sources.length===0&&!it.manual){shopping=shopping.filter(x=>x.id!==it.id);await softDelete('shopping',it.id);}
+    else await save('shopping',it);
   }
 }
 async function addMeal(recipe,servings){
   const meal={id:uid(),recipeId:recipe.id,recipeName:recipe.name,servings,base:recipe.servings||servings,createdAt:Date.now()};
-  meals.push(meal);await dbPut('meals',meal);
+  meals.push(meal);await save('meals',meal);
   const scale=meal.base?(servings/meal.base):1;let n=0;
   for(const ing of (recipe.ingredients||[])){await addIngredientToShopping(ing,scale,meal.id,recipe.name);n++;}
   return n;
 }
-async function removeMeal(mealId){meals=meals.filter(m=>m.id!==mealId);await dbDel('meals',mealId);await removeMealContributions(mealId);}
+async function removeMeal(mealId){meals=meals.filter(m=>m.id!==mealId);await softDelete('meals',mealId);await removeMealContributions(mealId);}
 
 /* ======================================================================
    Import par lien
@@ -306,36 +337,128 @@ function extractRecipeFromHTML(html){
 }
 function sourceType(url){const u=(url||'').toLowerCase();if(u.includes('marmiton'))return'marmiton';if(u.includes('jow'))return'jow';return'web';}
 function extractJowId(url){try{const u=new URL(url);if(/jow\./i.test(u.hostname)){const q=u.searchParams.get('recipeId');if(q)return q;const m=u.pathname.match(/[a-f0-9]{24}/i);if(m)return m[0];}}catch(e){}return null;}
-function parseJowRecipe(d){
-  if(!d)throw new Error('Recette Jow introuvable.');
-  const covers=d.coversCount||d.covers||2;
-  const cons=d.constituents||d.ingredients||[];
-  const ingredients=cons.map(c=>{
-    const nm=(c.ingredient&&(c.ingredient.name||c.ingredient.title))||c.name||'';
-    let per=c.quantityPerCover;
-    if(per==null&&c.quantity!=null)per=c.quantity/(covers||1);
-    const u=(c.unit&&(c.unit.name||c.unit.shortName))||(typeof c.unit==='string'?c.unit:null);
-    const qty=per!=null?Math.round(per*covers*100)/100:null;
-    return{qty,unit:u||null,name:nm};
-  }).filter(i=>i.name);
-  let img=d.imageUrl||d.image||'';
-  if(img&&!/^https?:/i.test(img))img='https://static.jow.fr/'+String(img).replace(/^\/+/,'');
-  return{name:(d.title||d.name||'Recette Jow').trim(),image:img,servings:covers,cook:d.cookingTime||null,ingredients,steps:[],partial:ingredients.length===0};
+
+/* --- Normalisation d'une recette Jow ---
+   Structure réelle de l'API : la quantité est dans constituents[].ingredient.quantityPerCover,
+   le nombre de couverts est roundedCoversCount, et l'unité se résout en croisant unit.id
+   avec naturalUnit ou alternativeUnits de l'ingrédient. */
+function normalizeUnitName(u){
+  if(u==null)return null;
+  const raw=String(u).trim();if(!raw)return null;
+  if(PIECE.test(raw))return null;
+  const low=raw.toLowerCase();
+  for(const[k,v]of UNIT_MAP){if(k===low)return v;}
+  const sing=low.replace(/\(s\)$/,'').replace(/s$/,'');
+  if(PIECE.test(sing))return null;
+  for(const[k,v]of UNIT_MAP){if(k===sing)return v;}
+  return raw;
 }
-async function fetchRecipe(url){
-  const proxy=(settings.proxy||'').trim();
-  const via=t=>proxy?proxy+(proxy.includes('?')?'&':'?')+'url='+encodeURIComponent(t):t;
-  const jowId=extractJowId(url);
-  if(jowId){
-    const api='https://api.jow.fr/public/recipes/'+encodeURIComponent(jowId);
-    const res=await fetch(via(api),{headers:{'Accept':'application/json'}});
-    if(!res.ok)throw new Error(await errMsg(res));
-    let data=await res.json();
-    if(Array.isArray(data))data=data[0];
-    if(data&&data.recipe)data=data.recipe;
-    return parseJowRecipe(data);
+function jowUnit(c){
+  const uid=c.unit&&(c.unit.id||c.unit._id);
+  const ing=c.ingredient||{};
+  const nat=ing.naturalUnit;
+  if(nat&&uid&&(nat._id===uid||nat.id===uid))return normalizeUnitName(nat.name);
+  for(const a of (ing.alternativeUnits||[])){
+    const u=a.unit||a;
+    if(u&&uid&&(u._id===uid||u.id===uid))return normalizeUnitName(u.name);
   }
-  const res=await fetch(via(url),{headers:{'Accept':'text/html'}});
+  if(c.unit&&c.unit.name)return normalizeUnitName(c.unit.name);
+  if(nat&&nat.name)return normalizeUnitName(nat.name);
+  return null;
+}
+function jowQty(c){
+  const ing=c.ingredient||{};
+  for(const v of [ing.quantityPerCover,c.quantityPerCover,c.quantity]){
+    if(typeof v==='number'&&isFinite(v))return v;
+  }
+  return null;
+}
+function normalizeJowRecipe(d){
+  if(!d||typeof d!=='object')throw new Error('Réponse Jow inattendue.');
+  const covers=d.roundedCoversCount||d.coversCount||d.covers||2;
+  const cons=Array.isArray(d.constituents)?d.constituents:[];
+  const ingredients=cons.map(c=>{
+    const ing=c.ingredient||{};
+    const name=(ing.name||c.name||'').trim();
+    const per=jowQty(c);
+    return{qty:per!=null?Math.round(per*covers*100)/100:null,unit:jowUnit(c),name};
+  }).filter(i=>i.name);
+  let img=d.imageUrl||'';
+  if(img&&!/^https?:/i.test(img))img='https://static.jow.fr/'+String(img).replace(/^\/+/,'');
+  return{name:(d.title||d.name||'Recette Jow').trim(),image:img,servings:covers,
+    cook:d.cookingTime||null,prep:d.preparationTime||null,ingredients,steps:[],
+    partial:ingredients.length===0};
+}
+function unwrapJow(d){
+  if(Array.isArray(d))return d[0];
+  if(d&&d.data)return Array.isArray(d.data)?d.data[0]:d.data;
+  if(d&&d.recipe)return d.recipe;
+  return d;
+}
+
+/* --- Recherche Jow (endpoint vérifié : POST /public/recipe/quicksearch) --- */
+const JOW_SEARCH='https://api.jow.fr/public/recipe/quicksearch';
+async function jowSearch(query,limit){
+  const qs='?start=0&availabilityZoneId=FR&limit='+(limit||20)+'&query='+encodeURIComponent(query);
+  const target=JOW_SEARCH+qs;
+  const res=await fetch(viaProxy(target),{
+    method:'POST',
+    headers:{'Accept':'application/json','Content-Type':'application/json','Accept-Language':'fr','x-jow-withmeta':'1'},
+    body:'{}'
+  });
+  if(!res.ok)throw new Error(await errMsg(res));
+  const j=await res.json();
+  return Array.isArray(j.data)?j.data:(Array.isArray(j)?j:[]);
+}
+function viaProxy(t){
+  const proxy=(settings.proxy||'').trim();
+  return proxy?proxy+(proxy.includes('?')?'&':'?')+'url='+encodeURIComponent(t):t;
+}
+
+/* Récupération d'une recette Jow depuis un lien de partage.
+   Aucun endpoint public "GET par identifiant" n'est documenté : on tente les candidats
+   plausibles, puis on retombe sur la recherche par titre (endpoint vérifié). */
+async function fetchJowById(id,url){
+  for(const ep of ['https://api.jow.fr/public/recipe/'+encodeURIComponent(id),
+                   'https://api.jow.fr/public/recipes/'+encodeURIComponent(id)]){
+    try{
+      const r=await fetch(viaProxy(ep),{headers:{'Accept':'application/json'}});
+      if(!r.ok)continue;
+      const rec=normalizeJowRecipe(unwrapJow(await r.json()));
+      if(rec.ingredients.length)return rec;
+    }catch(e){}
+  }
+  // Repli : lire le titre de la page partagée, puis chercher ce titre sur Jow.
+  let title=null;
+  try{
+    const r=await fetch(viaProxy(url),{headers:{'Accept':'text/html'}});
+    if(r.ok){
+      const doc=new DOMParser().parseFromString(await r.text(),'text/html');
+      const og=doc.querySelector('meta[property="og:title"]');
+      title=(og&&og.content)||doc.title||null;
+      if(title)title=title.replace(/\s*[|·—-]\s*Jow.*$/i,'').trim();
+    }
+  }catch(e){}
+  if(title){
+    try{
+      const hits=await jowSearch(title,20);
+      const exact=hits.find(h=>h._id===id||h.id===id);
+      const chosen=exact||hits[0];
+      if(chosen){
+        const rec=normalizeJowRecipe(chosen);
+        if(rec.ingredients.length){rec.approx=!exact;return rec;}
+      }
+    }catch(e){}
+  }
+  const err=new Error('Jow ne renvoie pas cette recette par lien.');
+  err.jowFallback=title||'';
+  throw err;
+}
+
+async function fetchRecipe(url){
+  const jowId=extractJowId(url);
+  if(jowId)return fetchJowById(jowId,url);
+  const res=await fetch(viaProxy(url),{headers:{'Accept':'text/html'}});
   if(!res.ok)throw new Error(await errMsg(res));
   return extractRecipeFromHTML(await res.text());
 }
@@ -480,6 +603,145 @@ function parseOcrText(text){
 }
 
 /* ======================================================================
+   Synchronisation entre appareils (optionnelle, désactivée par défaut)
+
+   Principe : un "code de partage" secret est saisi sur chaque téléphone. De ce code on dérive
+   DEUX choses distinctes, par PBKDF2 avec des sels différents :
+     - un identifiant de salon (envoyé au serveur) ;
+     - une clé AES-GCM qui ne quitte JAMAIS le téléphone.
+   Le serveur ne stocke que des identifiants, des horodatages et du chiffré : il ne peut pas
+   lire tes recettes, et un autre utilisateur sans le code ne peut rien en tirer.
+
+   Fusion : dernier écrivain gagne, enregistrement par enregistrement (pas en bloc), pour que
+   deux téléphones qui ajoutent chacun un article ne s'écrasent pas mutuellement.
+   ====================================================================== */
+const SYNC_ITER=150000;
+const b64=u8=>btoa(String.fromCharCode.apply(null,u8));
+const unb64=str=>Uint8Array.from(atob(str),c=>c.charCodeAt(0));
+
+async function deriveSync(secret){
+  const enc=new TextEncoder();
+  const base=await crypto.subtle.importKey('raw',enc.encode(secret),'PBKDF2',false,['deriveBits','deriveKey']);
+  const key=await crypto.subtle.deriveKey(
+    {name:'PBKDF2',salt:enc.encode('panier-cle-v1'),iterations:SYNC_ITER,hash:'SHA-256'},
+    base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+  const bits=await crypto.subtle.deriveBits(
+    {name:'PBKDF2',salt:enc.encode('panier-salon-v1'),iterations:SYNC_ITER,hash:'SHA-256'},base,256);
+  const room=[...new Uint8Array(bits)].map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,32);
+  return{key,room};
+}
+async function encJSON(key,obj){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(obj)));
+  return b64(iv)+'.'+b64(new Uint8Array(ct));
+}
+async function decJSON(key,str){
+  const [a,b]=String(str).split('.');
+  if(!a||!b)throw new Error('format');
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(a)},key,unb64(b));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+let _sync={key:null,room:null,busy:false,timer:null};
+function syncEnabled(){return !!(settings.syncUrl&&settings.syncSecret);}
+async function syncPrepare(){
+  if(_sync.key&&_sync.secretUsed===settings.syncSecret)return _sync;
+  const d=await deriveSync(settings.syncSecret);
+  _sync.key=d.key;_sync.room=d.room;_sync.secretUsed=settings.syncSecret;
+  return _sync;
+}
+function syncEndpoint(){
+  let u=(settings.syncUrl||'').trim().replace(/\/+$/,'');
+  return u+'/sync';
+}
+
+/* Applique les enregistrements distants : on n'écrase que si l'horodatage distant est
+   strictement plus récent, donc une modification locale postérieure est préservée. */
+async function syncApplyRemote(items,key){
+  let applied=0;
+  for(const it of items){
+    if(!it||!it.id||!SYNCED_STORES.includes(it.store))continue;
+    const local=await dbGet(it.store,it.id);
+    if(local&&(local.updatedAt||0)>=it.updatedAt)continue;
+    let rec;
+    if(it.deleted){rec={id:it.id,deleted:true,updatedAt:it.updatedAt};}
+    else{
+      try{rec=await decJSON(key,it.payload);}catch(e){continue;} // code différent : on ignore
+      rec.id=it.id;rec.updatedAt=it.updatedAt;delete rec.deleted;
+    }
+    await dbPut(it.store,rec);
+    applied++;
+  }
+  return applied;
+}
+
+async function syncRun(manual){
+  if(!syncEnabled()){if(manual)toast('Synchro non configurée');return;}
+  if(_sync.busy)return;
+  _sync.busy=true;
+  try{
+    const {key,room}=await syncPrepare();
+    const url=syncEndpoint();
+
+    // 1. Récupérer ce qui a changé sur le serveur depuis notre dernier passage.
+    // Tirage paginé : le serveur plafonne chaque réponse, on boucle tant qu'il reste des pages.
+    let since=settings.syncCursor||0,applied=0,cursor=since,guard=0;
+    while(guard++<20){
+      const pull=await fetch(url+'?room='+room+'&since='+cursor,{headers:{'Accept':'application/json'}});
+      if(!pull.ok)throw new Error(await errMsg(pull));
+      const remote=await pull.json();
+      applied+=await syncApplyRemote(remote.items||[],key);
+      const next=remote.now||cursor;
+      if(!remote.more||next===cursor)  {cursor=next;break;}
+      cursor=next;
+    }
+
+    // 2. Envoyer nos modifications locales postérieures au dernier envoi.
+    // Borne d'envoi : on repart du plus grand horodatage réellement envoyé, et la comparaison
+    // est STRICTE. Avec un <= et l'heure murale, tout enregistrement écrit dans la même
+    // milliseconde qu'une synchro terminée n'était jamais envoyé — donc perdu pour l'autre
+    // appareil. Réémettre l'enregistrement de la borne est sans effet (le serveur ignore les
+    // horodatages non strictement supérieurs).
+    const lastPush=settings.syncPushedAt||0;
+    const out=[];let maxTs=lastPush;
+    for(const store of SYNCED_STORES){
+      for(const r of await dbGetAll(store)){
+        const ts=r.updatedAt||0;
+        if(ts<lastPush)continue;
+        if(ts>maxTs)maxTs=ts;
+        const it={id:r.id,store,updatedAt:ts,deleted:!!r.deleted};
+        if(!r.deleted){const c=Object.assign({},r);delete c.updatedAt;it.payload=await encJSON(key,c);}
+        out.push(it);
+      }
+    }
+    const pushedAt=maxTs;
+    if(out.length){
+      const res=await fetch(url+'?room='+room,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({items:out})});
+      if(!res.ok)throw new Error(await errMsg(res));
+    }
+
+    settings.syncCursor=cursor;
+    settings.syncPushedAt=pushedAt;
+    settings.syncLastOk=Date.now();
+    settings.id='app';await dbPut('settings',settings);
+
+    if(applied){await loadAll();renderAll();}
+    if(manual)toast(applied?(applied+' élément'+(applied>1?'s':'')+' reçu'+(applied>1?'s':'')):'Déjà à jour'+(out.length?' — '+out.length+' envoyé'+(out.length>1?'s':''):''));
+  }catch(e){
+    if(manual)toast('Échec de synchro : '+e.message);
+  }finally{_sync.busy=false;}
+}
+
+// Déclenchement groupé : évite d'appeler le serveur à chaque case cochée.
+function syncSoon(){
+  if(!syncEnabled())return;
+  clearTimeout(_sync.timer);
+  _sync.timer=setTimeout(()=>syncRun(false),4000);
+}
+
+/* ======================================================================
    UI
    ====================================================================== */
 const $=s=>document.querySelector(s);
@@ -507,7 +769,7 @@ function renderCourses(){
     const eb=el('div','section-eyebrow');eb.innerHTML='✓ Dans le panier <span class="count">· '+done.length+'</span>';body.appendChild(eb);
     const list=el('div','list');done.forEach(it=>list.appendChild(itemRow(it)));body.appendChild(list);
     const clr=el('button','btn btn-danger btn-block','Retirer les articles cochés');clr.style.marginTop='14px';
-    clr.onclick=async()=>{for(const it of done){shopping=shopping.filter(x=>x.id!==it.id);await dbDel('shopping',it.id);}renderCourses();updateBadges();};
+    clr.onclick=async()=>{for(const it of done){shopping=shopping.filter(x=>x.id!==it.id);await softDelete('shopping',it.id);}renderCourses();updateBadges();};
     body.appendChild(clr);
   }
   updateBadges();
@@ -515,7 +777,7 @@ function renderCourses(){
 function itemRow(it){
   const row=el('div','item'+(it.checked?' done':''));
   const chk=el('button','check');chk.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5L19 7"/></svg>';
-  chk.onclick=async()=>{it.checked=!it.checked;row.classList.toggle('done',it.checked);await dbPut('shopping',it);setTimeout(()=>{renderCourses();updateBadges();},220);};
+  chk.onclick=async()=>{it.checked=!it.checked;row.classList.toggle('done',it.checked);await save('shopping',it);setTimeout(()=>{renderCourses();updateBadges();},220);};
   const body=el('div','body');
   body.appendChild(el('div','name',it.name.charAt(0).toUpperCase()+it.name.slice(1)));
   const src=[...new Set(it.sources.map(s=>s.recipeName).filter(Boolean))];
@@ -525,7 +787,7 @@ function itemRow(it){
   const q=fmtQty(itemEffectiveBase(it),it.cls,it.unit);
   if(q)row.appendChild(el('span','qty',q));
   const del=el('button','del');del.innerHTML='<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
-  del.onclick=async()=>{shopping=shopping.filter(x=>x.id!==it.id);await dbDel('shopping',it.id);renderCourses();updateBadges();};
+  del.onclick=async()=>{shopping=shopping.filter(x=>x.id!==it.id);await softDelete('shopping',it.id);renderCourses();updateBadges();};
   row.appendChild(del);
   return row;
 }
@@ -535,7 +797,7 @@ async function quickAdd(){
   let it=findItemByKey(key);const base=ing.qty!=null?toBase(ing.qty,ing.unit):null;
   if(it){it.manual=true;it.manualBase=(it.manualBase||0)+(base||0);}
   else{it={id:uid(),key,name:ing.name,unit:ing.unit||null,cls:unitClass(ing.unit),category:categorize(ing.name),checked:false,manual:true,manualBase:base,sources:[]};shopping.push(it);}
-  await dbPut('shopping',it);inp.value='';renderCourses();updateBadges();inp.focus();
+  await save('shopping',it);inp.value='';renderCourses();updateBadges();inp.focus();
 }
 
 function renderRepas(){
@@ -655,7 +917,7 @@ function openRecipeDetail(r){
     if(r.source){const link=el('a','btn btn-ghost btn-block','Ouvrir la source');link.href=r.source;link.target='_blank';link.rel='noopener';row.appendChild(link);}
     c.appendChild(row);
     const del=el('button','btn btn-danger btn-block','Supprimer la recette');del.style.marginTop='2px';
-    del.onclick=async()=>{if(!confirm('Supprimer « '+r.name+' » ?'))return;recipes=recipes.filter(x=>x.id!==r.id);await dbDel('recipes',r.id);closeSheet();renderRecettes();};
+    del.onclick=async()=>{if(!confirm('Supprimer « '+r.name+' » ?'))return;recipes=recipes.filter(x=>x.id!==r.id);await softDelete('recipes',r.id);closeSheet();renderRecettes();};
     c.appendChild(del);
   });
 }
@@ -667,6 +929,10 @@ function openImport(prefillUrl){
     o1.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12 19"/></svg></span><span class="tx"><b>Depuis un lien</b><span>Marmiton, Jow, CuisineAZ, 750g</span></span>';
     o1.onclick=()=>openImportLink(prefillUrl);
     c.appendChild(o1);
+    const oj=el('button','opt');
+    oj.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><span class="tx"><b>Rechercher sur Jow</b><span>Par nom de recette — quantités exactes</span></span>';
+    oj.onclick=()=>openJowSearch();
+    c.appendChild(oj);
     const o2=el('button','opt');
     o2.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span class="tx"><b>Depuis une photo</b><span>Capture d’écran ou photo d’un livre — lecture locale</span></span>';
     o2.onclick=openImportPhoto;
@@ -704,13 +970,76 @@ function openImportLink(prefill){
         rec.source=url;rec.sourceType=sourceType(url);
         closeSheet();
         if(rec.partial)toast('Fiche partielle — complète les ingrédients');
+        else if(rec.approx)toast('Trouvée par recherche — vérifie que c’est la bonne');
         openRecipeForm(rec);
       }catch(err){
+        if(err.jowFallback!==undefined){
+          // Lien Jow non résolu : bascule vers la recherche par nom, pré-remplie si connue.
+          closeSheet();openJowSearch(err.jowFallback||'');
+          toast('Lien Jow non résolu — recherche par nom');
+          return;
+        }
         status.innerHTML='❌ '+esc(err.message)+'<br>Astuce : essaie l’import par photo si le site bloque.';
         btn.disabled=false;btn.innerHTML=label;
       }
     };
     c.appendChild(btn);c.appendChild(status);
+  });
+}
+
+function openJowSearch(prefill){
+  openSheet('Rechercher sur Jow',c=>{
+    const f=el('div','field');f.innerHTML='<label>Nom de la recette</label>';
+    const inp=el('input');inp.type='search';inp.placeholder='quiche lorraine, poulet curry…';
+    inp.autocomplete='off';inp.enterKeyHint='search';
+    if(prefill)inp.value=prefill;
+    f.appendChild(inp);c.appendChild(f);
+    const btn=el('button','btn btn-primary btn-block');
+    const lbl='<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Rechercher';
+    btn.innerHTML=lbl;
+    const status=el('div','hint');status.style.marginTop='10px';
+    const results=el('div');results.style.marginTop='6px';
+    async function run(){
+      const q=inp.value.trim();
+      if(!q){status.textContent='Saisis un nom de recette.';return;}
+      btn.disabled=true;btn.innerHTML='<span class="spin"></span> Recherche…';
+      status.textContent='';results.innerHTML='';
+      try{
+        const hits=await jowSearch(q,20);
+        if(!hits.length){status.textContent='Aucun résultat pour « '+q+' ».';}
+        else{
+          results.appendChild(sectionEyebrow('Résultats',hits.length));
+          hits.forEach(h=>{
+            let rec;try{rec=normalizeJowRecipe(h);}catch(e){return;}
+            const row=el('div','pickrow');
+            const th=el('div','thumb');
+            if(rec.image)th.style.backgroundImage="url('"+rec.image+"')";
+            else th.textContent=rec.name.charAt(0).toUpperCase();
+            const t=el('div','t');
+            t.appendChild(el('div',null,rec.name));
+            const sub=el('div','sub');sub.style.cssText='font-size:12.5px;color:var(--muted)';
+            sub.textContent=rec.ingredients.length+' ingrédients · '+rec.servings+' pers.';
+            t.appendChild(sub);
+            const go=el('div','go');
+            go.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>';
+            row.appendChild(th);row.appendChild(t);row.appendChild(go);
+            row.onclick=()=>{
+              rec.sourceType='jow';
+              if(h._id||h.id)rec.source='https://jow.fr/recipes/'+(h._id||h.id);
+              closeSheet();openRecipeForm(rec);
+            };
+            results.appendChild(row);
+          });
+        }
+      }catch(err){
+        status.innerHTML='❌ '+esc(err.message)+'<br>Si l’erreur persiste, configure un relais dans les réglages : Jow bloque parfois les appels directs du navigateur.';
+      }
+      btn.disabled=false;btn.innerHTML=lbl;
+    }
+    btn.onclick=run;
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')run();});
+    c.appendChild(btn);c.appendChild(status);c.appendChild(results);
+    if(prefill)setTimeout(run,60);
   });
 }
 
@@ -845,7 +1174,7 @@ function openRecipeForm(recipe){
       data.servings=servF.input.value?parseInt(servF.input.value):null;
       data.ingredients=data.ingredients.filter(i=>(i.name||'').trim()).map(i=>({qty:i.qty,unit:i.unit,name:i.name.trim()}));
       data.steps=sta.value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-      await dbPut('recipes',data);
+      await save('recipes',data);
       const ix=recipes.findIndex(x=>x.id===data.id);
       if(ix>=0)recipes[ix]=data;else recipes.push(data);
       closeSheet();setTab('recettes');renderRecettes();
@@ -874,6 +1203,62 @@ function openSettings(){
     save.onclick=async()=>{settings.proxy=inp.value.trim();settings.id='app';await dbPut('settings',settings);closeSheet();toast('Réglages enregistrés');};
     c.appendChild(save);
 
+    // --- Synchronisation entre appareils ---
+    c.appendChild(sectionEyebrow('Synchro entre appareils',syncEnabled()?'active':'inactive'));
+    const su=el('div','field');su.innerHTML='<label>URL du serveur de synchro</label>';
+    const suI=el('input');suI.type='url';suI.inputMode='url';suI.autocomplete='off';
+    suI.value=settings.syncUrl||'';suI.placeholder='https://panier-relay.xxx.workers.dev';
+    su.appendChild(suI);c.appendChild(su);
+
+    const sk=el('div','field');sk.innerHTML='<label>Code de partage (secret)</label>';
+    const skI=el('input');skI.type='text';skI.autocomplete='off';skI.autocapitalize='off';
+    skI.spellcheck=false;skI.value=settings.syncSecret||'';
+    skI.placeholder='le même code sur tes deux téléphones';
+    sk.appendChild(skI);
+    const gen=el('button','btn btn-ghost btn-block','Générer un code sûr');
+    gen.style.marginTop='8px';
+    gen.onclick=()=>{
+      const a=new Uint8Array(15);crypto.getRandomValues(a);
+      skI.value=b64(a).replace(/[+/=]/g,'').slice(0,20);
+      toast('Code généré — recopie-le sur l’autre téléphone');
+    };
+    sk.appendChild(gen);
+    const skh=el('div','hint');
+    skh.innerHTML='Ce code chiffre tes données <b>avant</b> l’envoi : le serveur ne peut pas les lire, et personne ne peut y accéder sans lui. Saisis exactement le même sur ton second téléphone. Si tu le perds, les données déjà envoyées deviennent illisibles.';
+    sk.appendChild(skh);c.appendChild(sk);
+
+    const sSave=el('button','btn btn-primary btn-block','Enregistrer et synchroniser');
+    sSave.style.marginBottom='8px';
+    sSave.onclick=async()=>{
+      const changedSecret=(settings.syncSecret||'')!==skI.value.trim();
+      settings.syncUrl=suI.value.trim();
+      settings.syncSecret=skI.value.trim();
+      if(changedSecret){settings.syncCursor=0;settings.syncPushedAt=0;_sync.key=null;}
+      settings.id='app';await dbPut('settings',settings);
+      closeSheet();
+      if(syncEnabled())syncRun(true);else toast('Synchro désactivée');
+    };
+    c.appendChild(sSave);
+    if(syncEnabled()){
+      const now=el('button','btn btn-ghost btn-block','Synchroniser maintenant');
+      now.style.marginBottom='8px';
+      now.onclick=()=>{closeSheet();syncRun(true);};
+      c.appendChild(now);
+      const last=el('div','hint');
+      last.textContent=settings.syncLastOk?('Dernière synchro réussie : '+new Date(settings.syncLastOk).toLocaleString('fr-FR')):'Jamais synchronisé.';
+      last.style.marginBottom='4px';c.appendChild(last);
+    }
+
+    c.appendChild(sectionEyebrow('Application','v'+APP_VERSION));
+    const upd=el('button','btn btn-ghost btn-block','Rechercher une mise à jour');
+    upd.style.marginBottom='8px';
+    upd.onclick=()=>{closeSheet();checkForUpdate(true);};
+    c.appendChild(upd);
+    const uh=el('div','hint');
+    uh.textContent='L’app se met à jour toute seule au lancement quand tu es connecté. Ce bouton force la vérification.';
+    uh.style.marginBottom='4px';
+    c.appendChild(uh);
+
     c.appendChild(sectionEyebrow('Données',recipes.length+meals.length+shopping.length));
     const stat=el('div','hint');
     stat.textContent=recipes.length+' recettes · '+meals.length+' repas · '+shopping.length+' articles. Tout est stocké sur cet appareil.';
@@ -894,10 +1279,10 @@ function openSettings(){
       try{
         const d=JSON.parse(await file.text());
         if(!confirm('Remplacer les données actuelles par la sauvegarde ?'))return;
-        await dbClear('recipes');await dbClear('meals');await dbClear('shopping');
-        for(const r of (d.recipes||[]))await dbPut('recipes',r);
-        for(const m of (d.meals||[]))await dbPut('meals',m);
-        for(const s of (d.shopping||[]))await dbPut('shopping',s);
+        for(const st of SYNCED_STORES)await tombstoneAll(st);
+        for(const r of (d.recipes||[]))await save('recipes',r);
+        for(const m of (d.meals||[]))await save('meals',m);
+        for(const s of (d.shopping||[]))await save('shopping',s);
         if(d.settings){d.settings.id='app';await dbPut('settings',d.settings);}
         await loadAll();closeSheet();renderAll();toast('Sauvegarde importée');
       }catch(e){toast('Fichier invalide');}
@@ -907,7 +1292,7 @@ function openSettings(){
     const clr=el('button','btn btn-danger btn-block','Tout effacer');
     clr.onclick=async()=>{
       if(!confirm('Effacer toutes les recettes, repas et courses ? Action irréversible.'))return;
-      await dbClear('recipes');await dbClear('meals');await dbClear('shopping');
+      for(const st of SYNCED_STORES)await tombstoneAll(st);
       recipes=[];meals=[];shopping=[];closeSheet();renderAll();toast('Données effacées');
     };
     c.appendChild(clr);
@@ -923,6 +1308,72 @@ $('#btn-settings').onclick=openSettings;
 $('#btn-import').onclick=()=>openImport();
 $('#btn-new').onclick=()=>openRecipeForm({});
 
+/* ---------- Mises à jour de l'application ----------
+   Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
+   suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
+   lui-même a changé : on propose alors un rechargement en un geste. */
+const APP_VERSION='1.3.0';
+let _swReg=null,_reloading=false;
+
+function showUpdateBanner(worker){
+  const t=$('#toast');
+  t.textContent='Nouvelle version — appuyer pour recharger';
+  t.style.pointerEvents='auto';
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  t.onclick=()=>{
+    t.onclick=null;t.style.pointerEvents='';t.classList.remove('show');
+    if(worker)worker.postMessage('SKIP_WAITING');
+    setTimeout(()=>{if(!_reloading){_reloading=true;location.reload();}},400);
+  };
+  // Le bandeau reste 12 s, puis s'efface : la mise à jour s'appliquera au prochain lancement.
+  toast._t=setTimeout(()=>{t.onclick=null;t.style.pointerEvents='';t.classList.remove('show');},12000);
+}
+
+function watchForUpdate(reg){
+  if(!reg)return;
+  if(reg.waiting)showUpdateBanner(reg.waiting);
+  reg.addEventListener('updatefound',()=>{
+    const nw=reg.installing;
+    if(!nw)return;
+    nw.addEventListener('statechange',()=>{
+      // "installed" avec un contrôleur déjà en place = mise à jour en attente
+      if(nw.state==='installed'&&navigator.serviceWorker.controller)showUpdateBanner(nw);
+    });
+  });
+}
+
+async function checkForUpdate(manual){
+  if(!('serviceWorker'in navigator)){if(manual)toast('Non pris en charge par ce navigateur');return;}
+  try{
+    const reg=_swReg||await navigator.serviceWorker.getRegistration();
+    if(!reg){if(manual)toast('Application non installée en local');return;}
+    await reg.update();
+    if(manual){
+      if(reg.waiting)showUpdateBanner(reg.waiting);
+      else toast('Tu es déjà à jour (v'+APP_VERSION+')');
+    }
+  }catch(e){ if(manual)toast('Vérification impossible — hors-ligne ?'); }
+}
+
+function initServiceWorker(){
+  if(!('serviceWorker'in navigator))return;
+  // updateViaCache:'none' => sw.js n'est jamais servi depuis le cache HTTP,
+  // sans quoi le navigateur peut garder l'ancien pendant des heures.
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
+    _swReg=reg;
+    watchForUpdate(reg);
+    // Vérification au lancement, puis toutes les heures si l'app reste ouverte.
+    checkForUpdate(false);
+    setInterval(()=>checkForUpdate(false),60*60*1000);
+  }).catch(()=>{});
+  // Quand l'app revient au premier plan, on revérifie.
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkForUpdate(false);});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(_reloading)return;_reloading=true;location.reload();
+  });
+}
+
 async function boot(){
   await openDB();await loadAll();renderAll();
   const q=new URLSearchParams(location.search);
@@ -932,7 +1383,13 @@ async function boot(){
   const m=shared.match(/https?:\/\/\S+/);
   if(m){setTab('recettes');openImportLink(m[0]);}
   else if(q.get('action')==='import'){setTab('recettes');openImport();}
-  if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+  initServiceWorker();
+  purgeTombstones().catch(()=>{});
+  if(syncEnabled()){
+    syncRun(false);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncRun(false);});
+    setInterval(()=>syncRun(false),5*60*1000);
+  }
 }
 boot();
 </script>
