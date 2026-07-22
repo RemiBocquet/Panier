@@ -18,7 +18,7 @@ Le navigateur ne peut pas lire marmiton.org directement (blocage CORS). Un petit
 gratuit sert de relais.
 
 1. dash.cloudflare.com → Workers & Pages → Create Worker
-2. Coller le contenu de `worker/cors-relay.js`, déployer
+2. Coller le contenu de `cors-relay.js`, déployer
 3. Copier l'URL du Worker (ex. `https://panier-relay.xxx.workers.dev`)
 4. Dans l'app : ⚙️ Réglages → **Relais d'import** → coller l'URL → Enregistrer
 
@@ -79,10 +79,18 @@ Réglages → Importer : restaure. Pratique pour changer de téléphone, puisque
 index.html              toute l'application (UI + logique + OCR)
 manifest.webmanifest    métadonnées PWA, raccourcis, cible de partage
 sw.js                   service worker : coquille hors-ligne + cache des assets OCR
-icons/                  icônes générées
+icon-192.png            icônes de l'application
+icon-512.png
+icon-maskable-512.png
+apple-touch-icon.png
+favicon-64.png
 gen_icons.py            régénère les icônes (pip install pillow)
-worker/cors-relay.js    relais CORS Cloudflare pour l'import par lien
+cors-relay.js           relais CORS Cloudflare — à coller dans un Worker, PAS servi par le site
+.nojekyll               désactive Jekyll sur GitHub Pages
 ```
+
+Structure volontairement **plate** : aucun sous-dossier, pour pouvoir tout téléverser d'un coup
+depuis un téléphone sur github.com.
 
 Aucune dépendance à installer : tout est en vanilla JS. Seul Tesseract.js est chargé depuis un CDN,
 et seulement si tu utilises l'import par photo.

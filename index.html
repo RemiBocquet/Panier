@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-title" content="Panier" />
 <title>Panier — repas & courses</title>
 <link rel="manifest" href="manifest.webmanifest" />
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-<link rel="icon" href="icons/favicon-64.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" href="favicon-64.png" />
 <style>
 :root{
   --pine:#235347; --pine-d:#1a3f36; --pine-l:#2f6b58;
@@ -868,7 +868,7 @@ function openSettings(){
     inp.placeholder='https://panier-relay.xxx.workers.dev';
     f.appendChild(inp);
     const h=el('div','hint');
-    h.innerHTML='Nécessaire pour Marmiton (contourne le CORS). Code fourni dans <b>worker/cors-relay.js</b>. L’app appelle <code>?url=…</code>';
+    h.innerHTML='Nécessaire pour Marmiton (contourne le CORS). Code fourni dans <b>cors-relay.js</b>. L’app appelle <code>?url=…</code>';
     f.appendChild(h);c.appendChild(f);
     const save=el('button','btn btn-primary btn-block','Enregistrer');
     save.onclick=async()=>{settings.proxy=inp.value.trim();settings.id='app';await dbPut('settings',settings);closeSheet();toast('Réglages enregistrés');};

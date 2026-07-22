@@ -66,14 +66,14 @@ def draw_icon(size, maskable=False):
     return img.resize((size, size), Image.LANCZOS)
 
 
-os.makedirs("icons", exist_ok=True)
-draw_icon(192).save("icons/icon-192.png")
-draw_icon(512).save("icons/icon-512.png")
-draw_icon(512, maskable=True).save("icons/icon-maskable-512.png")
-draw_icon(64).save("icons/favicon-64.png")
+
+draw_icon(192).save("icon-192.png")
+draw_icon(512).save("icon-512.png")
+draw_icon(512, maskable=True).save("icon-maskable-512.png")
+draw_icon(64).save("favicon-64.png")
 
 at = Image.new("RGBA", (180, 180), PINE)
 at.alpha_composite(draw_icon(180))
-at.convert("RGB").save("icons/apple-touch-icon.png")
+at.convert("RGB").save("apple-touch-icon.png")
 
 print("icons generated")
