@@ -6,11 +6,8 @@ pousse automatiquement tous ses ingrédients dans les courses.
 
 ## Installation (2 minutes)
 
-1. Servir le dossier en **HTTPS** (obligatoire pour le service worker) :
-   - Cloudflare Pages / Netlify / GitHub Pages : glisser-déposer le dossier ;
-   - ou en local pour tester : `npx serve .` puis ouvrir `http://localhost:3000` (localhost est accepté).
-2. Sur Android, ouvrir l'URL dans Chrome → menu ⋮ → **Installer l'application**.
-3. L'icône apparaît sur l'écran d'accueil, l'app s'ouvre en plein écran.
+1. Sur Android, ouvrir l'URL dans Chrome → menu ⋮ → **Installer l'application**.
+2. L'icône apparaît sur l'écran d'accueil, l'app s'ouvre en plein écran.
 
 ## Le relais d'import (optionnel mais recommandé)
 
