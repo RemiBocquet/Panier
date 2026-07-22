@@ -1,0 +1,33 @@
+{
+  "name": "Panier — repas & courses",
+  "short_name": "Panier",
+  "description": "Planifie tes repas et génère automatiquement ta liste de courses. Recettes importables depuis Marmiton ou Jow, ou par OCR depuis une capture d'écran.",
+  "id": "/",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF6EE",
+  "theme_color": "#235347",
+  "lang": "fr",
+  "categories": ["food", "lifestyle", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Liste de courses", "url": "./?tab=courses", "short_name": "Courses" },
+    { "name": "Repas à faire", "url": "./?tab=repas", "short_name": "Repas" },
+    { "name": "Importer une recette", "url": "./?action=import", "short_name": "Importer" }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "shared"
+    }
+  }
+}
