@@ -336,7 +336,25 @@ function extractRecipeFromHTML(html){
   return{name:(firstStr(node.name)||'Recette').trim(),image:firstStr(node.image)||'',servings:yieldToNum(node.recipeYield),prep:iso8601ToMin(node.prepTime),cook:iso8601ToMin(node.cookTime),ingredients,steps:instrToSteps(node.recipeInstructions),partial:ingredients.length===0};
 }
 function sourceType(url){const u=(url||'').toLowerCase();if(u.includes('marmiton'))return'marmiton';if(u.includes('jow'))return'jow';return'web';}
-function extractJowId(url){try{const u=new URL(url);if(/jow\./i.test(u.hostname)){const q=u.searchParams.get('recipeId');if(q)return q;const m=u.pathname.match(/[a-f0-9]{24}/i);if(m)return m[0];}}catch(e){}return null;}
+function isJowUrl(url){try{return /(^|\.)jow\.(fr|com)$/i.test(new URL(url).hostname);}catch(e){return false;}}
+/* Les identifiants Jow ont deux formats : l'ancien ObjectId (24 caractères hexadécimaux) et le
+   nouveau suffixe de slug alphanumérique (ex. 8o4qf9a96uxg2zdj104r). L'ancienne expression
+   régulière ne reconnaissait que le premier, donc les liens jow.fr/recipes/... n'étaient jamais
+   routés vers le parseur Jow. */
+function extractJowId(url){
+  try{
+    const u=new URL(url);
+    if(!isJowUrl(url))return null;
+    const q=u.searchParams.get('recipeId');if(q)return q;
+    const hex=u.pathname.match(/[a-f0-9]{24}/i);if(hex)return hex[0];
+    const m=u.pathname.match(/\/recipes\/(.+)$/i);
+    if(m){
+      const last=m[1].replace(/\/+$/,'').split('-').pop();
+      if(last&&last.length>=12&&/^[a-z0-9]+$/i.test(last))return last;
+    }
+  }catch(e){}
+  return null;
+}
 
 /* --- Normalisation d'une recette Jow ---
    Structure réelle de l'API : la quantité est dans constituents[].ingredient.quantityPerCover,
@@ -482,10 +500,10 @@ async function fetchJowPage(target){
   return parseJowPage(await r.text(),target);
 }
 async function fetchJowById(id,url){
-  // 1. La page publique jow.com : source la plus fiable.
+  // 1. La page publique Jow : source la plus fiable.
   const pages=[];
   if(/\/recipes\//i.test(url))pages.push(url);
-  if(id)pages.push('https://jow.com/recipes/'+encodeURIComponent(id));
+  if(id&&!/\/recipes\//i.test(url))pages.push('https://jow.com/recipes/'+encodeURIComponent(id));
   for(const pg of pages){
     try{const rec=await fetchJowPage(pg);if(rec.ingredients.length)return rec;}catch(e){}
   }
@@ -531,8 +549,13 @@ async function fetchJowById(id,url){
 }
 
 async function fetchRecipe(url){
-  const jowId=extractJowId(url);
-  if(jowId)return fetchJowById(jowId,url);
+  // Sans relais, le navigateur ne peut joindre ni Jow ni Marmiton (CORS) : l'échec serait un
+  // « Failed to fetch » opaque. On le dit clairement avant même de tenter la requête.
+  if(!relayBase()){
+    const e=new Error('Aucun relais configuré. Le navigateur ne peut pas lire Marmiton ni Jow directement (blocage CORS). Renseigne l’URL de ton Worker dans Réglages → Relais d’import.');
+    e.noRelay=true;throw e;
+  }
+  if(isJowUrl(url))return fetchJowById(extractJowId(url),url);
   const res=await fetch(viaProxy(url),{headers:{'Accept':'text/html'}});
   if(!res.ok)throw new Error(await errMsg(res));
   return extractRecipeFromHTML(await res.text());
@@ -816,6 +839,30 @@ function syncSoon(){
   _sync.timer=setTimeout(()=>syncRun(false),4000);
 }
 
+/* --- Diagnostic du relais ---
+   Distingue les trois échecs possibles : URL absente, Worker injoignable, Worker joignable mais
+   refusant le domaine. Sans ça, tout se ressemble : « Failed to fetch ». */
+async function testRelay(){
+  const base=relayBase();
+  if(!base)return{ok:false,msg:'Aucune URL de relais renseignée.'};
+  let u;try{u=new URL(base);}catch(e){return{ok:false,msg:'URL invalide : '+base};}
+  if(u.protocol!=='https:')return{ok:false,msg:'L’URL doit commencer par https://'};
+  const target='https://www.marmiton.org/recettes/recette_quiche-lorraine_30283.aspx';
+  try{
+    const res=await fetch(base+'?url='+encodeURIComponent(target),{headers:{'Accept':'text/html'}});
+    if(!res.ok){
+      let d='';try{const j=await res.json();if(j&&j.error)d=' — '+j.error;}catch(e){}
+      return{ok:false,msg:'Le relais répond mais renvoie une erreur '+res.status+d};
+    }
+    const txt=await res.text();
+    if(/recipeIngredient|application\/ld\+json/i.test(txt))
+      return{ok:true,msg:'Relais fonctionnel : page Marmiton reçue ('+Math.round(txt.length/1024)+' ko).'};
+    return{ok:false,msg:'Le relais répond, mais le contenu reçu ne ressemble pas à une recette.'};
+  }catch(e){
+    return{ok:false,msg:'Impossible de joindre le relais. Vérifie l’URL et que le Worker est déployé. ('+e.message+')'};
+  }
+}
+
 /* ======================================================================
    UI
    ====================================================================== */
@@ -1054,7 +1101,10 @@ function openImportLink(prefill){
           toast('Lien Jow non résolu — recherche par nom');
           return;
         }
-        status.innerHTML='❌ '+esc(err.message)+'<br>Astuce : essaie l’import par photo si le site bloque.';
+        let extra='Astuce : essaie l’import par photo si le site bloque.';
+        if(/failed to fetch|networkerror|load failed/i.test(err.message))
+          extra='Le relais n’a pas répondu. Vérifie l’URL dans Réglages, puis utilise « Tester le relais ».';
+        status.innerHTML='❌ '+esc(err.message)+'<br>'+extra;
         btn.disabled=false;btn.innerHTML=label;
       }
     };
@@ -1275,8 +1325,21 @@ function openSettings(){
     h.innerHTML='Nécessaire pour Marmiton (contourne le CORS). Code fourni dans <b>cors-relay.js</b>. L’app appelle <code>?url=…</code>';
     f.appendChild(h);c.appendChild(f);
     const save=el('button','btn btn-primary btn-block','Enregistrer');
-    save.onclick=async()=>{settings.proxy=inp.value.trim();settings.id='app';await dbPut('settings',settings);closeSheet();toast('Réglages enregistrés');};
+    save.style.marginBottom='8px';
+    save.onclick=async()=>{settings.proxy=inp.value.trim();settings.id='app';await dbPut('settings',settings);toast('Réglages enregistrés');};
     c.appendChild(save);
+    const test=el('button','btn btn-ghost btn-block','Tester le relais');
+    const tres=el('div','hint');tres.style.marginTop='8px';
+    test.onclick=async()=>{
+      settings.proxy=inp.value.trim();settings.id='app';await dbPut('settings',settings);
+      test.disabled=true;test.innerHTML='<span class="spin"></span> Test en cours…';
+      tres.textContent='';
+      const r=await testRelay();
+      tres.innerHTML=(r.ok?'✅ ':'❌ ')+esc(r.msg);
+      tres.style.color=r.ok?'var(--leaf)':'var(--tomato)';
+      test.disabled=false;test.textContent='Tester le relais';
+    };
+    c.appendChild(test);c.appendChild(tres);
 
     // --- Synchronisation entre appareils ---
     c.appendChild(sectionEyebrow('Synchro entre appareils',syncEnabled()?'active':'inactive'));
@@ -1387,7 +1450,7 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
    suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
    lui-même a changé : on propose alors un rechargement en un geste. */
-const APP_VERSION='1.4.0';
+const APP_VERSION='1.4.1';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
