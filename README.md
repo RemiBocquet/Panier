@@ -9,18 +9,6 @@ pousse automatiquement tous ses ingrédients dans les courses.
 1. Sur Android, ouvrir l'URL dans Chrome → menu ⋮ → **Installer l'application**.
 2. L'icône apparaît sur l'écran d'accueil, l'app s'ouvre en plein écran.
 
-## Le relais d'import (optionnel mais recommandé)
-
-Le navigateur ne peut pas lire marmiton.org directement (blocage CORS). Un petit Cloudflare Worker
-gratuit sert de relais.
-
-1. dash.cloudflare.com → Workers & Pages → Create Worker
-2. Coller le contenu de `cors-relay.js`, déployer
-3. Copier l'URL du Worker (ex. `https://panier-relay.xxx.workers.dev`)
-4. Dans l'app : ⚙️ Réglages → **Relais d'import** → coller l'URL → Enregistrer
-
-Jow fonctionne souvent **sans** relais (son API renvoie les bons en-têtes CORS). Marmiton en a besoin.
-
 ## Les trois façons d'ajouter une recette
 
 **Depuis un lien** — Recettes → Importer → Depuis un lien.
@@ -81,34 +69,6 @@ français dans `index.html` (constante `RAYONS`) — facile à compléter.
 Désactivé par défaut. Une fois activé, les recettes, repas et courses sont partagés entre tes
 appareils — et uniquement les tiens.
 
-### Mise en place
-
-1. **Créer la base.** Cloudflare → Workers & Pages → D1 → Create database (nom libre).
-   Dans l'onglet Console, colle :
-
-   ```sql
-   CREATE TABLE IF NOT EXISTS items (
-     room       TEXT    NOT NULL,
-     id         TEXT    NOT NULL,
-     store      TEXT    NOT NULL,
-     updated_at INTEGER NOT NULL,
-     deleted    INTEGER NOT NULL DEFAULT 0,
-     payload    TEXT,
-     PRIMARY KEY (room, id)
-   );
-   CREATE INDEX IF NOT EXISTS idx_room_updated ON items(room, updated_at);
-   ```
-
-2. **Lier la base au Worker.** Settings → Bindings → Add → D1 database,
-   nom de variable exactement **`DB`**.
-
-3. **Redéployer** `cors-relay.js` (il contient désormais les endpoints de synchro).
-
-4. **Sur le téléphone 1.** Réglages → Synchro entre appareils : colle l'URL du Worker,
-   appuie sur « Générer un code sûr », puis Enregistrer.
-
-5. **Sur le téléphone 2.** Même URL, et **exactement le même code**. Enregistrer.
-
 ### Confidentialité
 
 Le code de partage ne quitte jamais l'appareil. Il sert à dériver, par PBKDF2 (150 000
@@ -139,25 +99,3 @@ continue de fonctionner : les changements partent à la reconnexion.
 
 Réglages → Exporter : un fichier JSON avec tout (recettes, repas, courses, réglages).
 Réglages → Importer : restaure. Pratique pour changer de téléphone, puisque rien n'est dans le cloud.
-
-## Fichiers
-
-```
-index.html              toute l'application (UI + logique + OCR)
-manifest.webmanifest    métadonnées PWA, raccourcis, cible de partage
-sw.js                   service worker : coquille hors-ligne + cache des assets OCR
-icon-192.png            icônes de l'application
-icon-512.png
-icon-maskable-512.png
-apple-touch-icon.png
-favicon-64.png
-gen_icons.py            régénère les icônes (pip install pillow)
-cors-relay.js           relais CORS Cloudflare — à coller dans un Worker, PAS servi par le site
-.nojekyll               désactive Jekyll sur GitHub Pages
-```
-
-Structure volontairement **plate** : aucun sous-dossier, pour pouvoir tout téléverser d'un coup
-depuis un téléphone sur github.com.
-
-Aucune dépendance à installer : tout est en vanilla JS. Seul Tesseract.js est chargé depuis un CDN,
-et seulement si tu utilises l'import par photo.
