@@ -242,7 +242,7 @@ async function purgeTombstones(){
 }
 
 /* ---------- Unités & parsing ---------- */
-const UNITS=[['kg','kg'],['kilogramme','kg'],['kilogrammes','kg'],['kilo','kg'],['kilos','kg'],['g','g'],['gr','g'],['gramme','g'],['grammes','g'],['mg','mg'],['l','l'],['litre','l'],['litres','l'],['dl','dl'],['cl','cl'],['ml','ml'],['millilitre','ml'],['millilitres','ml'],['càs','c. à soupe'],['cas','c. à soupe'],['cuillère à soupe','c. à soupe'],['cuillères à soupe','c. à soupe'],['cuillere à soupe','c. à soupe'],['cuilleres à soupe','c. à soupe'],['c. à soupe','c. à soupe'],['c à soupe','c. à soupe'],['cs','c. à soupe'],['càc','c. à café'],['cac','c. à café'],['cuillère à café','c. à café'],['cuillères à café','c. à café'],['cuillere à café','c. à café'],['cuilleres à café','c. à café'],['c. à café','c. à café'],['c à café','c. à café'],['cc','c. à café'],['pincée','pincée'],['pincées','pincée'],['gousse','gousse'],['gousses','gousse'],['tranche','tranche'],['tranches','tranche'],['sachet','sachet'],['sachets','sachet'],['boîte','boîte'],['boîtes','boîte'],['boite','boîte'],['boites','boîte'],['botte','botte'],['bottes','botte'],['brin','brin'],['brins','brin'],['feuille','feuille'],['feuilles','feuille'],['verre','verre'],['verres','verre'],['tasse','tasse'],['tasses','tasse'],['pot','pot'],['pots','pot'],['bouquet','bouquet'],['bouquets','bouquet'],['morceau','morceau'],['morceaux','morceau'],['boule','boule'],['boules','boule']];
+const UNITS=[['kg','kg'],['kilogramme','kg'],['kilogrammes','kg'],['kilo','kg'],['kilos','kg'],['g','g'],['gr','g'],['gramme','g'],['grammes','g'],['mg','mg'],['l','l'],['litre','l'],['litres','l'],['dl','dl'],['cl','cl'],['ml','ml'],['millilitre','ml'],['millilitres','ml'],['càs','c. à soupe'],['cas','c. à soupe'],['cuillère à soupe','c. à soupe'],['cuillères à soupe','c. à soupe'],['cuillere à soupe','c. à soupe'],['cuilleres à soupe','c. à soupe'],['c. à soupe','c. à soupe'],['c à soupe','c. à soupe'],['cs','c. à soupe'],['càc','c. à café'],['cac','c. à café'],['cuillère à café','c. à café'],['cuillères à café','c. à café'],['cuillere à café','c. à café'],['cuilleres à café','c. à café'],['c. à café','c. à café'],['c à café','c. à café'],['cc','c. à café'],['pincée','pincée'],['pincées','pincée'],['gousse','gousse'],['gousses','gousse'],['tranche','tranche'],['tranches','tranche'],['sachet','sachet'],['sachets','sachet'],['boîte','boîte'],['boîtes','boîte'],['boite','boîte'],['boites','boîte'],['botte','botte'],['bottes','botte'],['brin','brin'],['brins','brin'],['feuille','feuille'],['feuilles','feuille'],['verre','verre'],['verres','verre'],['tasse','tasse'],['tasses','tasse'],['pot','pot'],['pots','pot'],['bouquet','bouquet'],['bouquets','bouquet'],['morceau','morceau'],['morceaux','morceau'],['boule','boule'],['boules','boule'],['cup','tasse'],['cups','tasse'],['tbsp','c. à soupe'],['tablespoon','c. à soupe'],['tablespoons','c. à soupe'],['tsp','c. à café'],['teaspoon','c. à café'],['teaspoons','c. à café'],['slice','tranche'],['slices','tranche'],['clove','gousse'],['cloves','gousse'],['pinch','pincée'],['oz','oz'],['lb','lb']];
 const UNIT_MAP=UNITS.slice().sort((a,b)=>b[0].length-a[0].length);
 const WORD_NUM={un:1,une:1,deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10,demi:0.5,demie:0.5};
 const FRAC={'½':0.5,'⅓':1/3,'⅔':2/3,'¼':0.25,'¾':0.75,'⅕':0.2,'⅛':0.125};
@@ -410,15 +410,86 @@ async function jowSearch(query,limit){
   const j=await res.json();
   return Array.isArray(j.data)?j.data:(Array.isArray(j)?j:[]);
 }
+// Relais et synchro sont le même Worker : si un seul champ est rempli, on réutilise l'autre.
+function relayBase(){
+  return ((settings.proxy||'').trim()||(settings.syncUrl||'').trim()).replace(/\/+$/,'');
+}
 function viaProxy(t){
-  const proxy=(settings.proxy||'').trim();
-  return proxy?proxy+(proxy.includes('?')?'&':'?')+'url='+encodeURIComponent(t):t;
+  const b=relayBase();
+  return b?b+'?url='+encodeURIComponent(t):t;
+}
+
+/* --- Lecture d'une page recette jow.com ---
+   Les pages /recipes/<slug>-<id> sont rendues côté serveur : titre, ingrédients, quantités et
+   étapes sont dans le HTML. C'est bien plus fiable que l'API (dont le domaine a changé).
+   Chaque ancre d'ingrédient a un textContent NOM+QUANTITÉ+NOM : on isole la quantité en
+   cherchant le plus long préfixe qui soit aussi suffixe. */
+function splitJowAnchor(t){
+  t=(t||'').replace(/\s+/g,' ').trim();
+  if(!t)return null;
+  for(let len=Math.floor(t.length/2);len>=1;len--){
+    const p=t.slice(0,len);
+    if(t.endsWith(p)){
+      const mid=t.slice(len,t.length-len).trim();
+      if(mid)return{name:p.trim(),qty:mid};
+    }
+  }
+  return{name:t,qty:''};
+}
+function parseJowPage(html,url){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const meta=n=>{const e=doc.querySelector('meta[property="'+n+'"]');return e?e.content:'';};
+  let name=meta('og:title')||doc.title||'';
+  name=name.replace(/^\s*(recipe|recette)\s*:\s*/i,'').replace(/\s*[|—-]\s*Jow\s*$/i,'').trim();
+
+  const seen=new Set(),ingredients=[];
+  doc.querySelectorAll('a[href*="/ingredients/"]').forEach(a=>{
+    const part=splitJowAnchor(a.textContent||'');
+    if(!part||!part.name)return;
+    const k=stripAccents(part.name.toLowerCase());
+    if(seen.has(k))return;seen.add(k);
+    const parsed=parseIngredient(part.qty?(part.qty+' '+part.name):part.name);
+    if(parsed)ingredients.push({qty:parsed.qty,unit:parsed.unit,name:part.name});
+  });
+
+  let servings=null;
+  try{const c=new URL(url).searchParams.get('coversCount');if(c)servings=parseInt(c)||null;}catch(e){}
+  if(!servings){
+    const m=(doc.body?doc.body.textContent:'').match(/pour\s+(\d+)\s+personne/i);
+    if(m)servings=parseInt(m[1]);
+  }
+
+  // Étapes : blocs "Step N" / "Étape N"
+  const steps=[];
+  doc.querySelectorAll('p,li,div').forEach(el=>{
+    const t=(el.textContent||'').replace(/\s+/g,' ').trim();
+    if(!t||t.length<12||t.length>400)return;
+    if(/^(step|étape)\s*\d+\s*[:.]?\s*$/i.test(t))return;
+    const m=t.match(/^(?:step|étape)\s*\d+\s*[:.]?\s*(.+)$/i);
+    if(m&&m[1].length>10&&steps.length<25&&!steps.includes(m[1]))steps.push(m[1]);
+  });
+
+  return{name:name||'Recette Jow',image:meta('og:image')||'',servings:servings||null,
+    ingredients,steps,partial:ingredients.length===0};
 }
 
 /* Récupération d'une recette Jow depuis un lien de partage.
    Aucun endpoint public "GET par identifiant" n'est documenté : on tente les candidats
    plausibles, puis on retombe sur la recherche par titre (endpoint vérifié). */
+async function fetchJowPage(target){
+  const r=await fetch(viaProxy(target),{headers:{'Accept':'text/html'}});
+  if(!r.ok)throw new Error(await errMsg(r));
+  return parseJowPage(await r.text(),target);
+}
 async function fetchJowById(id,url){
+  // 1. La page publique jow.com : source la plus fiable.
+  const pages=[];
+  if(/\/recipes\//i.test(url))pages.push(url);
+  if(id)pages.push('https://jow.com/recipes/'+encodeURIComponent(id));
+  for(const pg of pages){
+    try{const rec=await fetchJowPage(pg);if(rec.ingredients.length)return rec;}catch(e){}
+  }
+  // 2. Anciennes API (conservées au cas où, mais le domaine a changé).
   for(const ep of ['https://api.jow.fr/public/recipe/'+encodeURIComponent(id),
                    'https://api.jow.fr/public/recipes/'+encodeURIComponent(id)]){
     try{
@@ -450,7 +521,11 @@ async function fetchJowById(id,url){
       }
     }catch(e){}
   }
-  const err=new Error('Jow ne renvoie pas cette recette par lien.');
+  if(!relayBase()){
+    const e2=new Error('Aucun relais configuré : Jow et Marmiton sont inaccessibles directement depuis le navigateur (CORS). Renseigne l’URL de ton Worker dans Réglages.');
+    e2.noRelay=true;throw e2;
+  }
+  const err=new Error('Jow ne renvoie pas cette recette par lien. Ouvre la recette sur jow.com et copie le lien de la page (jow.com/recipes/…).');
   err.jowFallback=title||'';
   throw err;
 }
@@ -930,7 +1005,7 @@ function openImport(prefillUrl){
     o1.onclick=()=>openImportLink(prefillUrl);
     c.appendChild(o1);
     const oj=el('button','opt');
-    oj.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><span class="tx"><b>Rechercher sur Jow</b><span>Par nom de recette — quantités exactes</span></span>';
+    oj.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><span class="tx"><b>Rechercher sur Jow</b><span>Par nom — peut échouer, l’import par lien est plus sûr</span></span>';
     oj.onclick=()=>openJowSearch();
     c.appendChild(oj);
     const o2=el('button','opt');
@@ -948,7 +1023,7 @@ function openImportLink(prefill){
   openSheet('Importer depuis un lien',c=>{
     const f=el('div','field');f.innerHTML='<label>Lien de la recette</label>';
     const inp=el('input');inp.type='url';inp.inputMode='url';inp.autocomplete='off';
-    inp.placeholder='https://www.marmiton.org/… ou https://app.jow.com/…';
+    inp.placeholder='https://www.marmiton.org/… ou https://jow.com/recipes/…';
     if(prefill)inp.value=prefill;
     f.appendChild(inp);
     const hint=el('div','hint');
@@ -1032,7 +1107,7 @@ function openJowSearch(prefill){
           });
         }
       }catch(err){
-        status.innerHTML='❌ '+esc(err.message)+'<br>Si l’erreur persiste, configure un relais dans les réglages : Jow bloque parfois les appels directs du navigateur.';
+        status.innerHTML='❌ '+esc(err.message)+'<br><br>L’API de recherche Jow n’est plus publique de façon fiable. Méthode recommandée : ouvre <b>jow.com</b>, affiche la recette, copie le lien de la page (<code>jow.com/recipes/…</code>) et utilise <b>Importer → Depuis un lien</b>.';
       }
       btn.disabled=false;btn.innerHTML=lbl;
     }
@@ -1312,7 +1387,7 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
    suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
    lui-même a changé : on propose alors un rechargement en un geste. */
-const APP_VERSION='1.3.0';
+const APP_VERSION='1.4.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
