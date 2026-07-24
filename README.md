@@ -4,7 +4,7 @@ PWA installable sur Android. Base de données **locale au téléphone** (Indexed
 Deux listes tenues à jour : **repas à faire** et **liste de courses**. Ajouter une recette aux repas
 pousse automatiquement tous ses ingrédients dans les courses.
 
-## Installation (2 minutes)
+## Installation
 
 1. Sur Android, ouvrir l'URL dans Chrome → menu ⋮ → **Installer l'application**.
 2. L'icône apparaît sur l'écran d'accueil, l'app s'ouvre en plein écran.
