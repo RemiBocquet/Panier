@@ -68,6 +68,8 @@ main{padding:16px 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 24px);m
 .tagsrc.marmiton{background:#fdeede;color:var(--saffron-d)}
 .tagsrc.jow{background:#eaf0f6;color:#3a6ea5}
 .tagsrc.photo{background:#e9f1e5;color:var(--leaf)}
+.tagsrc.cuisineaz{background:#f1e6f5;color:#7d4a91}
+.tagsrc.\37 50g{background:#fbe6ea;color:#b23a5e}
 .chip{flex:none;display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;background:#eef3ef;color:var(--pine);font-weight:700;font-size:13px}
 .chip svg{width:16px;height:16px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round}
 .quickadd{display:flex;gap:9px;margin-bottom:6px}
@@ -711,7 +713,7 @@ function filterActive(){return !!(rFilter.q||rFilter.excl||rFilter.src||rFilter.
 function resetFilter(){rFilter={q:'',excl:'',tags:new Set(),src:''};}
 
 /* ---------- État ---------- */
-let recipes=[],meals=[],shopping=[],stock=[],settings={id:'app',proxy:''};
+let recipes=[],meals=[],shopping=[],stock=[],settings={id:'app',proxy:'',household:null};
 const alive=a=>a.filter(r=>!r.deleted);
 async function loadAll(){
   recipes=alive(await dbGetAll('recipes'));
@@ -781,7 +783,7 @@ function extractRecipeFromHTML(html){
   const ingredients=raw.map(x=>parseIngredient(typeof x==='string'?x:firstStr(x))).filter(Boolean);
   return{name:(firstStr(node.name)||'Recette').trim(),image:firstStr(node.image)||'',servings:yieldToNum(node.recipeYield),prep:iso8601ToMin(node.prepTime),cook:iso8601ToMin(node.cookTime),ingredients,steps:instrToSteps(node.recipeInstructions),partial:ingredients.length===0};
 }
-function sourceType(url){const u=(url||'').toLowerCase();if(u.includes('marmiton'))return'marmiton';if(u.includes('jow'))return'jow';return'web';}
+function sourceType(url){const u=(url||'').toLowerCase();if(u.includes('marmiton'))return'marmiton';if(u.includes('jow'))return'jow';if(u.includes('cuisineaz'))return'cuisineaz';if(u.includes('750g'))return'750g';return'web';}
 function isJowUrl(url){try{return /(^|\.)jow\.(fr|com)$/i.test(new URL(url).hostname);}catch(e){return false;}}
 /* Les identifiants Jow ont deux formats : l'ancien ObjectId (24 caractères hexadécimaux) et le
    nouveau suffixe de slug alphanumérique (ex. 8o4qf9a96uxg2zdj104r). L'ancienne expression
@@ -1542,7 +1544,7 @@ function buildFilterBar(){
   ex.appendChild(exI);adv.appendChild(ex);
   const sf=el('div','field');sf.innerHTML='<label>Provenance</label>';
   const sel=el('select');
-  [['','Toutes'],['marmiton','Marmiton'],['jow','Jow'],['photo','Photo (OCR)'],['manual','Saisie manuelle'],['web','Autre site']]
+  [['','Toutes'],['marmiton','Marmiton'],['jow','Jow'],['cuisineaz','CuisineAZ'],['750g','750g'],['photo','Photo (OCR)'],['manual','Saisie manuelle'],['web','Autre site']]
     .forEach(([v,l])=>{const o=el('option',null,l);o.value=v;if(rFilter.src===v)o.selected=true;sel.appendChild(o);});
   sel.onchange=()=>{rFilter.src=sel.value;refreshRecipeList();};
   sf.appendChild(sel);adv.appendChild(sf);
@@ -1882,10 +1884,11 @@ function openMealPicker(){
 }
 function openServingsStep(recipe){
   const base=recipe.servings||2;
+  const dflt=settings.household||base;
   openSheet(recipe.name,c=>{
     const f=el('div','field');f.innerHTML='<label>Nombre de personnes</label>';
     const st=el('div','stepper');
-    const minus=el('button',null,'−');const val=el('input');val.type='text';val.inputMode='numeric';val.value=base;const plus=el('button',null,'+');
+    const minus=el('button',null,'−');const val=el('input');val.type='text';val.inputMode='numeric';val.value=dflt;const plus=el('button',null,'+');
     const clamp=()=>{let n=parseInt(val.value)||1;val.value=Math.max(1,Math.min(50,n));};
     minus.onclick=()=>{val.value=Math.max(1,(parseInt(val.value)||1)-1);};
     plus.onclick=()=>{val.value=Math.min(50,(parseInt(val.value)||1)+1);};
@@ -1893,11 +1896,11 @@ function openServingsStep(recipe){
     st.appendChild(minus);st.appendChild(val);st.appendChild(plus);f.appendChild(st);
     if(recipe.servings)f.appendChild(el('div','hint','Recette prévue pour '+recipe.servings+' pers. — les quantités sont ajustées automatiquement.'));
     c.appendChild(f);
-    const info=el('div','hint','Les '+(recipe.ingredients?recipe.ingredients.length:0)+' ingrédients seront ajoutés à la liste de courses.');
+    const info=el('div','hint','Les '+(recipe.ingredients?recipe.ingredients.length:0)+' ingrédients rejoindront la liste de courses à la validation de la semaine.');
     info.style.marginBottom='14px';c.appendChild(info);
     const btn=el('button','btn btn-accent btn-block');
     btn.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Ajouter aux repas';
-    btn.onclick=async()=>{clamp();const n=await addMeal(recipe,parseInt(val.value)||base);closeSheet();setTab('courses');renderCourses();renderRepas();updateBadges();toast('+'+n+' ingrédient'+(n>1?'s':'')+' ajouté'+(n>1?'s':'')+' aux courses');};
+    btn.onclick=async()=>{clamp();await addMeal(recipe,parseInt(val.value)||dflt);closeSheet();renderCourses();renderRepas();renderRecettes();updateBadges();toast('Ajouté aux repas de la semaine');};
     c.appendChild(btn);
   });
 }
@@ -2210,17 +2213,42 @@ function field(label,value,type){
 /* ---------- Réglages ---------- */
 function openSettings(){
   openSheet('Réglages',c=>{
+    c.appendChild(sectionEyebrow('Foyer',settings.household?settings.household+' pers.':'non défini'));
+    const hf=el('div','field');hf.innerHTML='<label>Nombre de personnes dans le foyer</label>';
+    const hi=el('input');hi.type='text';hi.inputMode='numeric';hi.placeholder='ex. 4';
+    hi.value=settings.household?String(settings.household):'';
+    hf.appendChild(hi);
+    hf.appendChild(el('div','hint','Proposé par défaut comme nombre de personnes lorsque tu ajoutes une recette aux repas.'));
+    c.appendChild(hf);
+    const hSave=el('button','btn btn-primary btn-block','Enregistrer');
+    hSave.style.marginBottom='8px';
+    hSave.onclick=async()=>{
+      const n=parseInt(hi.value);
+      settings.household=(n>0)?Math.min(50,n):null;
+      settings.id='app';await dbPut('settings',settings);
+      toast('Réglages enregistrés');
+    };
+    c.appendChild(hSave);
+
+    // Le relais est pré-configuré et fonctionne sans intervention : ces réglages ne concernent
+    // que le déploiement d'un Worker perso, donc masqués derrière un repli technique.
+    const relayToggle=el('button','btn btn-ghost btn-block','⚙️ Réglage technique : relais d’import');
+    relayToggle.style.marginBottom='8px';
+    const relayBox=el('div');relayBox.style.display='none';
+    relayToggle.onclick=()=>{relayBox.style.display=relayBox.style.display==='none'?'block':'none';};
+    c.appendChild(relayToggle);
+
     const f=el('div','field');f.innerHTML='<label>Relais d’import (Cloudflare Worker)</label>';
     const inp=el('input');inp.type='url';inp.value=settings.proxy||relayBase();inp.inputMode='url';inp.autocomplete='off';
     inp.placeholder=DEFAULT_RELAY;
     f.appendChild(inp);
     const h=el('div','hint');
     h.innerHTML='Pré-rempli avec le relais par défaut intégré à l’app : rien à faire. Modifie ce champ seulement si tu déploies ton propre Worker (code fourni dans <b>cors-relay.js</b>). Vider le champ rétablit le relais par défaut.';
-    f.appendChild(h);c.appendChild(f);
+    f.appendChild(h);relayBox.appendChild(f);
     const btnSave=el('button','btn btn-primary btn-block','Enregistrer');
     btnSave.style.marginBottom='8px';
     btnSave.onclick=async()=>{settings.proxy=inp.value.trim();settings.id='app';await dbPut('settings',settings);toast('Réglages enregistrés');};
-    c.appendChild(btnSave);
+    relayBox.appendChild(btnSave);
     const test=el('button','btn btn-ghost btn-block','Tester le relais');
     const tres=el('div','hint');tres.style.marginTop='8px';
     test.onclick=async()=>{
@@ -2232,7 +2260,8 @@ function openSettings(){
       tres.style.color=r.ok?'var(--leaf)':'var(--tomato)';
       test.disabled=false;test.textContent='Tester le relais';
     };
-    c.appendChild(test);c.appendChild(tres);
+    relayBox.appendChild(test);relayBox.appendChild(tres);
+    c.appendChild(relayBox);
 
     // --- Synchronisation entre appareils ---
     c.appendChild(sectionEyebrow('Synchro entre appareils',syncEnabled()?'active':'inactive'));
