@@ -1,8 +1,9 @@
 # Panier — repas & courses
 
 PWA installable sur Android. Base de données **locale au téléphone** (IndexedDB), fonctionne hors-ligne.
-Deux listes tenues à jour : **repas à faire** et **liste de courses**. Ajouter une recette aux repas
-pousse automatiquement tous ses ingrédients dans les courses.
+Trois listes tenues à jour : **repas à faire**, **stock** et **liste de courses**. Ajouter une recette
+aux repas la met en attente de validation ; c'est la validation de la semaine qui compare les besoins
+au stock et pousse le manque réel dans les courses (voir [Stock et validation de la semaine](#stock-et-validation-de-la-semaine)).
 
 ## Installation
 
@@ -43,7 +44,8 @@ Les ingrédients sont agrégés par nom + famille d'unité :
 Chaque article garde la trace des recettes qui l'ont demandé (affiché sous le nom). Retirer un repas
 retire exactement sa contribution, sans toucher aux quantités venant des autres recettes ni aux articles ajoutés à la main.
 
-Changer le nombre de personnes au moment d'ajouter un repas met les quantités à l'échelle.
+Changer le nombre de personnes au moment d'ajouter un repas met les quantités à l'échelle. Réglages →
+Foyer permet de fixer un nombre de personnes par défaut, proposé (et modifiable) à chaque ajout.
 
 ## Les rayons
 
@@ -62,7 +64,7 @@ ingrédients déjà enregistrés : rien à ressaisir.
 - **≤ 5 ingrédients** — pour les soirs pressés.
 - **Jamais cuisiné** — masque les recettes déjà présentes dans la liste des repas.
 - **＋ Plus** — exclure un ingrédient précis (« sans champignon ») et filtrer par provenance
-  (Marmiton, Jow, photo, saisie manuelle).
+  (Marmiton, Jow, CuisineAZ, 750g, photo, saisie manuelle, autre site).
 
 Les filtres se combinent, et le compteur indique « N recettes sur M » avec un bouton de
 réinitialisation. Le sélecteur de recette (Planifier un repas) dispose aussi d'une recherche.
