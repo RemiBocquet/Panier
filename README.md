@@ -13,35 +13,23 @@ pousse automatiquement tous ses ingrédients dans les courses.
 
 **Depuis un lien** — Recettes → Importer → Depuis un lien.
 - Marmiton, CuisineAZ, 750g : lecture du JSON-LD `schema.org/Recipe` de la page.
-- Jow : l'`recipeId` de l'URL est extrait, puis plusieurs endpoints sont tentés. Si aucun ne
-  répond, l'app lit le titre de la page partagée et bascule automatiquement sur la recherche
-  Jow, qui elle est fiable.
+- Jow : **utilise le lien de la page web**, pas le lien de partage de l'appli.
+  Ouvrez la recette sur `jow.com`, copiez l'URL de la forme `jow.com/recipes/<nom>-<id>`.
+  Les liens `app.jow.com/...?recipeId=...` sont aussi tentés, mais Jow ne garantit pas leur
+  résolution : si ça échoue, passez par le lien de page.
 
 **Rechercher sur Jow** — Recettes → Importer → Rechercher sur Jow.
-- Recherche par nom via `POST api.jow.fr/public/recipe/quicksearch`, le seul endpoint public
-  fiable. La réponse contient les recettes complètes.
-- Les quantités Jow sont exprimées **par couvert** (`constituents[].ingredient.quantityPerCover`)
-  et multipliées par `roundedCoversCount`. L'unité est résolue en croisant `unit.id` avec
-  `naturalUnit` ou `alternativeUnits` de l'ingrédient — c'est ainsi que Jow choisit d'afficher
-  « 20 cl » plutôt que « 200 ml ».
-- Cette recherche passe par une requête POST : si tu utilises le relais, prends bien la
-  **version à jour** de `cors-relay.js`, qui relaie POST (l'ancienne ne gérait que GET).
 
 **Depuis une photo (OCR)** — Recettes → Importer → Depuis une photo.
 - Capture d'écran de n'importe quel site/appli, ou photo d'une page de livre.
 - Le texte est lu **localement sur le téléphone** (Tesseract.js en WebAssembly). Rien n'est envoyé
-  à un serveur. Le moteur (~3 Mo) est téléchargé au premier usage puis mis en cache : ensuite l'OCR
+  à un serveur. Le moteur (~3 Mo) est téléchargé au premier usage puis mis en cache: ensuite l'OCR
   marche hors-ligne.
 - Le parseur repère la section « Ingrédients », ignore les étapes, pubs et temps de cuisson, et gère
   la mise en page Jow où le nom et la quantité sont sur deux lignes séparées.
 - Les quantités reconnues sont **à vérifier** dans le formulaire avant enregistrement.
 
 **Saisie manuelle** — champ « Coller une liste » : une ligne = un ingrédient, analysée automatiquement.
-
-## Partage direct
-
-L'app est déclarée comme cible de partage. Depuis Chrome ou l'appli Jow : **Partager → Panier**,
-l'écran d'import s'ouvre avec le lien pré-rempli.
 
 ## Fonctionnement des quantités
 
@@ -53,21 +41,116 @@ Les ingrédients sont agrégés par nom + famille d'unité :
   voulu : 2 gousses d'ail et 1 c. à café d'ail en poudre ne se confondent pas.
 
 Chaque article garde la trace des recettes qui l'ont demandé (affiché sous le nom). Retirer un repas
-retire exactement sa contribution, sans toucher aux quantités venant des autres recettes ni aux
-articles ajoutés à la main.
+retire exactement sa contribution, sans toucher aux quantités venant des autres recettes ni aux articles ajoutés à la main.
 
 Changer le nombre de personnes au moment d'ajouter un repas met les quantités à l'échelle.
 
 ## Les rayons
 
 La liste est triée par rayon de supermarché (fruits & légumes, viandes & poissons, crémerie,
-boulangerie, épicerie salée/sucrée, boissons, surgelés, entretien) via un dictionnaire de mots-clés
-français dans `index.html` (constante `RAYONS`) — facile à compléter.
+boulangerie, épicerie salée/sucrée, boissons, surgelés, entretien).
+
+## Filtrer les recettes
+
+L'onglet Recettes propose une barre de recherche et des filtres cumulables. Tout est déduit des
+ingrédients déjà enregistrés : rien à ressaisir.
+
+- **Recherche** — porte sur le nom et les ingrédients : « poulet » trouve « Poulet basquaise »
+  comme toute recette contenant du poulet. Insensible à la casse et aux accents.
+- **Végétarien / Végan** — végan exclut en plus les produits laitiers, les œufs et le miel.
+- **Sans porc / Sans lactose / Sans gluten**
+- **≤ 5 ingrédients** — pour les soirs pressés.
+- **Jamais cuisiné** — masque les recettes déjà présentes dans la liste des repas.
+- **＋ Plus** — exclure un ingrédient précis (« sans champignon ») et filtrer par provenance
+  (Marmiton, Jow, photo, saisie manuelle).
+
+Les filtres se combinent, et le compteur indique « N recettes sur M » avec un bouton de
+réinitialisation. Le sélecteur de recette (Planifier un repas) dispose aussi d'une recherche.
+
+### Ce que la détection sait faire, et ne sait pas faire
+
+La classification repose sur des mots-clés appliqués aux noms d'ingrédients. Les pièges courants
+sont traités : « lait de coco », « lait d'amande », « steak de soja » ou « farine de sarrasin » ne
+déclenchent pas à tort les filtres lait, viande ou gluten.
+
+Pour les filtres d'exclusion, le choix a été fait de **pencher du côté prudent** : en cas
+d'ambiguïté, l'ingrédient est considéré comme présent, quitte à masquer une recette à tort.
+Exemple : « saucisse » est comptée comme du porc, faute de précision.
+
+Cela reste une heuristique, **pas une garantie**. Pour une allergie sérieuse ou un régime strict,
+**vérifiez la liste des ingrédients de la recette**.
+
+## Stock et validation de la semaine
+
+L'onglet **Stock** liste ce que vous avez déjà. Tant qu'un repas n'est pas validé, il ne génère
+aucune course : c'est la validation qui compare les besoins au stock et n'achète que le manque.
+
+### Le cycle
+
+1. **Planifier** — ajoute des recettes aux repas. Elles s'affichent en « en attente de
+   validation » sans échéance ni course.
+2. **Renseigner le stock** — à la main (« 500 g de semoule ») ou par photo.
+3. **Valider la semaine** — un écran récapitule ce qui est déjà en stock et ce qui est
+   à acheter. À la confirmation, le stock est déduit et la liste de courses ne contient
+   que le manque réel.
+
+Exemple : deux recettes utilisant 250 g et 150 g de semoule, avec 500 g en stock → aucun rachat,
+et le stock tombe à 100 g. Si tu annules ensuite un repas validé, les quantités prélevées
+retournent au stock.
+
+### Quantité connue ou inconnue
+
+Un article de stock peut avoir une quantité chiffrée (500 g) ou aucune. Sans quantité, il est
+considéré comme **disponible en quantité suffisante** — le cas normal du placard (sel, épices,
+huile), et le seul résultat honnête d'une photo, qui ne sait pas peser. Le rapprochement se fait
+sur le nom, insensible à la casse et au pluriel ; les quantités ne sont comparées que si les
+unités sont compatibles.
 
 ## Synchroniser deux téléphones (optionnel)
 
 Désactivé par défaut. Une fois activé, les recettes, repas et courses sont partagés entre tes
 appareils — et uniquement les tiens.
+
+## Priorité et péremption
+
+Le compte à rebours d'un ingrédient démarrequand l'article est coché dans la liste de courses, c'est-à-dire au moment de l'achat, pas au moment où la recette est planifiée.
+
+L'échéance d'un repas est celle de son ingrédient le plus fragile. Un plat au saumon passe
+donc devant un plat de viande rouge, lui-même devant un dahl de lentilles qui n'a aucune
+contrainte.
+
+L'onglet Repas se réorganise en conséquence :
+
+- section **En priorité** en tête, triée par urgence, puis **Quand tu veux** ;
+- badge sur chaque carte : « À faire aujourd'hui », « À faire demain », « En retard de 2 jours »,
+  ou une date explicite au-delà de trois jours ;
+- liseré coloré (rouge en retard, orange sous 24 h, jaune sous 3 jours) ;
+- la ligne « à cause de : saumon » indique **quel ingrédient** impose la date — l'information
+  qui permet d'agir ;
+- un bandeau d'alerte en haut dès qu'un repas est à faire aujourd'hui, demain, ou en retard.
+
+Un repas dont les ingrédients ne sont pas encore achetés n'affiche aucune échéance : le compte
+à rebours n'a pas commencé.
+
+### Les durées de conservation
+
+| Durée | Exemples |
+|---|---|
+| 1 j | poisson, fruits de mer, viande hachée |
+| 2 j | volaille, saucisse, merguez, abats |
+| 3 j | viande rouge, champignons, salade, herbes fraîches, crème |
+| 4 j | lardons, jambon, mozzarella, tofu |
+| 5 j | lait, courgette, brocoli, fruits rouges |
+| 7 j | tomate, poivron, aubergine, pain, pâte à tarte |
+| 10 j | yaourt, fromage blanc, brie, camembert |
+| 14 j | carotte, chou, agrumes, pomme, courge |
+| 21 j | œufs, beurre, fromages à pâte dure |
+| 30 j | pommes de terre, oignon, ail |
+| — | farine, riz, pâtes, conserves, épices, huile… (aucune contrainte) |
+
+Les valeurs sont volontairement prudentes : mieux vaut être alerté trop tôt que trop tard.
+Ce sont des ordres de grandeur pour une conservation correcte, **pas une garantie sanitaire** :
+la date sur l'emballage prime toujours.
 
 ### Confidentialité
 

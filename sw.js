@@ -2,12 +2,10 @@
 //
 // Stratégie de mise à jour :
 //  - la coquille (HTML/manifest) est servie en RÉSEAU D'ABORD, cache en secours.
-//    => dès que tu redéploies, le téléphone récupère la nouvelle version au lancement suivant,
-//       sans que tu aies besoin de changer quoi que ce soit ici.
 //  - les images et assets OCR sont servis en CACHE D'ABORD (ils ne changent jamais).
 //  - hors-ligne, tout retombe sur le cache : l'app reste utilisable.
 
-const VERSION = 'panier-v1.5.0';
+const VERSION = 'panier-v1.8.0';
 const SHELL_CACHE = 'panier-shell-' + VERSION;
 const STATIC_CACHE = 'panier-static-v1';
 const OCR_CACHE = 'panier-ocr-v1';

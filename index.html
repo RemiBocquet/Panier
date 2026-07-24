@@ -151,6 +151,54 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .opt .tx{flex:1}
 .opt .tx b{display:block;font-size:15px}
 .opt .tx span{font-size:12.5px;color:var(--muted)}
+/* --- stock --- */
+.stq{flex:none;font-variant-numeric:tabular-nums;font-weight:700;color:var(--pine);font-size:14px;background:#eef3ef;padding:3px 9px;border-radius:8px}
+.stq.unk{background:#f2ede2;color:var(--muted);font-weight:600}
+.planbox{background:var(--card);border-radius:var(--r-sm);box-shadow:var(--shadow);padding:14px;margin-bottom:14px}
+.planbox h4{margin:0 0 4px;font-family:var(--ff-display);font-size:16px}
+.planbox p{margin:0;font-size:13px;color:var(--muted);line-height:1.45}
+.planline{display:flex;justify-content:space-between;gap:12px;padding:8px 2px;border-bottom:1px dashed var(--hair);font-size:14px}
+.planline:last-child{border-bottom:none}
+.planline .q{flex:none;font-variant-numeric:tabular-nums;font-weight:700;color:var(--pine)}
+.planline.cov{color:var(--muted)}
+.planline.cov .q{color:var(--leaf)}
+.mcard.planned{opacity:.94;border-left:4px solid var(--hair)}
+.pill{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:#f2ede2;color:var(--muted);margin-top:5px}
+/* --- échéances de péremption --- */
+.mcard{position:relative}
+.mcard.late{border-left:4px solid var(--tomato)}
+.mcard.soon{border-left:4px solid var(--saffron)}
+.mcard.warn{border-left:4px solid #d9b64a}
+.dl{display:inline-flex;align-items:center;gap:5px;margin-top:5px;padding:3px 9px;border-radius:8px;font-size:11.5px;font-weight:700;line-height:1.35}
+.dl.late{background:#fbe6e2;color:#a33827}
+.dl.soon{background:#fdeede;color:var(--saffron-d)}
+.dl.warn{background:#fbf3dc;color:#8a6d1f}
+.dl.ok{background:#eef3ef;color:var(--pine)}
+.dl-why{font-size:11px;color:var(--muted);margin-top:3px}
+.alertbox{display:flex;gap:11px;align-items:flex-start;padding:13px 14px;border-radius:var(--r-sm);background:#fbe6e2;color:#8f3226;margin-bottom:14px;font-size:13.5px;line-height:1.4}
+.alertbox.soon{background:#fdeede;color:#8a5714}
+.alertbox .ic{flex:none;font-size:19px;line-height:1.1}
+/* --- barre de filtres --- */
+.fbar{margin-bottom:6px}
+.fsearch{position:relative;margin-bottom:9px}
+.fsearch input{width:100%;border:1.5px solid var(--hair);background:var(--card);border-radius:12px;padding:12px 40px 12px 38px;outline:none;transition:.15s}
+.fsearch input:focus{border-color:var(--pine-l);box-shadow:0 0 0 3px rgba(47,107,88,.12)}
+.fsearch .mag{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:17px;height:17px;stroke:var(--muted);fill:none;stroke-width:2;stroke-linecap:round;pointer-events:none}
+.fsearch .clr{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:8px;display:none;place-items:center;color:var(--muted)}
+.fsearch .clr svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round}
+.fsearch.filled .clr{display:grid}
+.fchips{display:flex;gap:7px;overflow-x:auto;padding:2px 2px 4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.fchips::-webkit-scrollbar{display:none}
+.fchip{flex:none;display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;background:var(--card);color:var(--ink);font-size:13px;font-weight:600;box-shadow:var(--shadow);border:1.5px solid transparent;white-space:nowrap;transition:.12s}
+.fchip:active{transform:scale(.96)}
+.fchip.on{background:var(--pine);color:#fff;border-color:var(--pine)}
+.fchip.more{color:var(--pine)}
+.fadv{background:var(--card);border-radius:var(--r-sm);box-shadow:var(--shadow);padding:12px 13px;margin-top:9px;display:none}
+.fadv.show{display:block}
+.fadv .field{margin-bottom:10px}
+.fadv .field:last-child{margin-bottom:0}
+.fcount{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin:12px 4px 2px}
+.fcount button{color:var(--tomato);font-weight:700;font-size:12.5px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -174,6 +222,14 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 
   <section class="tab" id="tab-repas"><div id="repas-body"></div></section>
 
+  <section class="tab" id="tab-stock">
+    <div class="quickadd">
+      <input id="st-input" type="text" enterkeyhint="done" placeholder="ex. 500 g de semoule…" autocomplete="off" />
+      <button class="btn-add" id="st-btn" aria-label="Ajouter"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    </div>
+    <div id="stock-body"></div>
+  </section>
+
   <section class="tab" id="tab-recettes">
     <div class="btn-row" style="margin-top:2px">
       <button class="btn btn-primary btn-block" id="btn-import"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Importer</button>
@@ -186,7 +242,8 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 <nav class="tabbar">
   <button data-tab="repas"><svg viewBox="0 0 24 24"><path d="M3 3h4l.4 2M7 13h10l3-8H6.4"/><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/></svg>Repas<span class="badge" id="badge-repas" hidden>0</span></button>
   <button data-tab="courses" class="on"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Courses<span class="badge" id="badge-courses" hidden>0</span></button>
-  <button data-tab="recettes"><svg viewBox="0 0 24 24"><path d="M4 4h11a2 2 0 0 1 2 2v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2z"/><path d="M8 8h6M8 12h6M8 16h4"/></svg>Recettes</button>
+  <button data-tab="stock"><svg viewBox="0 0 24 24"><path d="M3 7h18v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 7l2-4h14l2 4M12 3v4M3 12h18"/></svg>Stock<span class="badge" id="badge-stock" hidden>0</span></button>
+  <button data-tab="recettes"><svg viewBox="0 0 24 24"><path d="M4 4h11a2 2 0 0 1 2 2v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2z"/><path d="M8 8h6M8 12h4"/></svg>Recettes</button>
 </nav>
 
 <div class="scrim" id="scrim"></div>
@@ -206,7 +263,7 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
    ====================================================================== */
 
 /* ---------- IndexedDB ---------- */
-const DB_NAME='panierDB',DB_VER=1,STORES=['recipes','meals','shopping','settings'];let _db=null;
+const DB_NAME='panierDB',DB_VER=2,STORES=['recipes','meals','shopping','settings','stock'];let _db=null;
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,DB_VER);r.onupgradeneeded=e=>{const db=e.target.result;for(const s of STORES){if(!db.objectStoreNames.contains(s))db.createObjectStore(s,{keyPath:'id'});}};r.onsuccess=e=>{_db=e.target.result;res(_db);};r.onerror=()=>rej(r.error);});}
 function tx(s,m='readonly'){return _db.transaction(s,m).objectStore(s);}
 function dbGetAll(s){return new Promise((res,rej)=>{const r=tx(s).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);});}
@@ -219,7 +276,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 /* --- Horodatage et suppressions douces (indispensables à la synchro) ---
    Chaque enregistrement porte un updatedAt. Une suppression laisse une "pierre tombale"
    {id, deleted:true, updatedAt} : sans elle, l'autre téléphone re-pousserait l'objet effacé. */
-const SYNCED_STORES=['recipes','meals','shopping'];
+const SYNCED_STORES=['recipes','meals','shopping','stock'];
 async function save(store,obj){obj.updatedAt=Date.now();await dbPut(store,obj);syncSoon();return obj;}
 async function softDelete(store,id){
   const t={id,deleted:true,updatedAt:Date.now()};
@@ -273,13 +330,394 @@ function categorize(name){const n=stripAccents((name||'').toLowerCase());for(con
 function rayonMeta(id){const r=RAYONS.find(x=>x[0]===id);return r?{id,icon:r[1],label:r[2]}:{id:'autres',icon:'🧺',label:'Autres'};}
 const rayonOrder=id=>{const i=RAYONS.findIndex(x=>x[0]===id);return i<0?RAYONS.length:i;};
 
+/* ======================================================================
+   Stock (placard, frigo, congélateur)
+   ----------------------------------------------------------------------
+   Un article de stock : {id, name, key, unit, cls, base, category}
+     base = quantité en unité canonique (g / ml / compte), ou null.
+     base === null signifie « présent, quantité inconnue » : on considère alors que le
+     besoin est couvert. C'est le cas courant du placard (« j'ai de la semoule ») et le
+     seul résultat honnête d'une reconnaissance photo, qui ne sait pas peser.
+
+   Les repas sont d'abord PLANIFIÉS, puis VALIDÉS. La validation déduit le stock et ne met
+   dans la liste de courses que le manque réel.
+   ====================================================================== */
+
+// Clé de rapprochement : le NOM seul, sans la classe d'unité. Le stock « farine, 500 g »
+// doit pouvoir couvrir un besoin exprimé en tasses.
+function stockKey(name){
+  return stripAccents((name||'').toLowerCase()).replace(/[^a-z0-9 ]/g,'').replace(/s\b/g,'').trim();
+}
+function findStock(name){const k=stockKey(name);return stock.find(x=>x.key===k)||null;}
+
+async function stockSet(name,qty,unit){
+  const k=stockKey(name);
+  if(!k)return null;
+  const cls=unitClass(unit);
+  const base=qty!=null?toBase(qty,unit):null;
+  let it=stock.find(x=>x.key===k);
+  if(it){
+    // Quantité inconnue + quantité inconnue = toujours inconnue.
+    if(base==null||it.base==null){it.base=null;it.unit=unit||it.unit;it.cls=unitClass(unit||it.unit);}
+    else if(it.cls===cls){it.base+=base;}
+    else {it.base=base;it.unit=unit;it.cls=cls;}   // unités incompatibles : la dernière fait foi
+  }else{
+    it={id:uid(),key:k,name,unit:unit||null,cls,base,category:categorize(name)};
+    stock.push(it);
+  }
+  await save('stock',it);
+  return it;
+}
+async function stockRemove(id){
+  stock=stock.filter(x=>x.id!==id);
+  await softDelete('stock',id);
+}
+/* Retire une quantité du stock. Renvoie ce qui a effectivement été consommé,
+   afin de pouvoir le restituer si le repas est annulé. */
+async function stockConsume(name,base,cls){
+  const it=findStock(name);
+  if(!it)return null;
+  if(it.base==null)return{key:it.key,base:null};          // quantité inconnue : rien à décompter
+  if(base==null||it.cls!==cls)return{key:it.key,base:null};
+  const used=Math.min(it.base,base);
+  it.base-=used;
+  if(it.base<=0.0001){await stockRemove(it.id);}
+  else{await save('stock',it);}
+  return{key:it.key,base:used,cls:it.cls,unit:it.unit,name:it.name};
+}
+async function stockRestore(entries){
+  for(const e of (entries||[])){
+    if(!e||e.base==null)continue;
+    const ex=stock.find(x=>x.key===e.key);
+    if(ex){ if(ex.base!=null)ex.base+=e.base; await save('stock',ex); }
+    else{
+      const it={id:uid(),key:e.key,name:e.name||e.key,unit:e.unit||null,cls:e.cls||'none',base:e.base,category:categorize(e.name||e.key)};
+      stock.push(it);await save('stock',it);
+    }
+  }
+}
+
+/* ---------- Statut des repas ----------
+   Les repas créés avant cette version n'ont pas de statut : ils ont déjà alimenté la liste
+   de courses, on les considère donc comme validés. */
+const mealStatus=m=>m.status||'validated';
+const plannedMeals=()=>meals.filter(m=>mealStatus(m)==='planned');
+
+/* Calcule, pour un ensemble de repas planifiés, ce qui est couvert par le stock
+   et ce qu'il reste à acheter. Fonction pure : ne modifie rien. */
+function planNeeds(list){
+  const needs=new Map();   // clé nom+classe -> agrégat
+  for(const m of list){
+    const r=recipes.find(x=>x.id===m.recipeId);
+    if(!r)continue;
+    const scale=m.base?(m.servings/m.base):1;
+    for(const ing of (r.ingredients||[])){
+      const cls=unitClass(ing.unit);
+      const k=stockKey(ing.name)+'#'+cls;
+      let n=needs.get(k);
+      if(!n){n={name:ing.name,unit:ing.unit||null,cls,base:null,meals:[]};needs.set(k,n);}
+      const b=ing.qty!=null?toBase(ing.qty*scale,ing.unit):null;
+      if(b!=null)n.base=(n.base||0)+b;
+      n.meals.push({mealId:m.id,recipeName:r.name,base:b});
+    }
+  }
+  const covered=[],toBuy=[];
+  // Copie de travail du stock : plusieurs besoins peuvent puiser dans le même article.
+  const avail=new Map();
+  for(const it of stock)avail.set(it.key,{base:it.base,cls:it.cls,name:it.name,unit:it.unit});
+  for(const n of needs.values()){
+    const sk=stockKey(n.name);
+    const a=avail.get(sk);
+    if(!a){toBuy.push(Object.assign({},n,{from:null}));continue;}
+    if(a.base==null||a.cls!==n.cls||n.base==null){
+      // Quantité inconnue, ou unités non comparables : on considère le besoin couvert.
+      covered.push(Object.assign({},n,{stockName:a.name,exact:false}));
+      continue;
+    }
+    if(a.base>=n.base){
+      a.base-=n.base;
+      covered.push(Object.assign({},n,{stockName:a.name,exact:true,used:n.base}));
+    }else{
+      const missing=n.base-a.base;
+      covered.push(Object.assign({},n,{stockName:a.name,exact:true,used:a.base,partial:true}));
+      toBuy.push(Object.assign({},n,{base:missing,from:sk}));
+      a.base=0;
+    }
+  }
+  return{covered,toBuy};
+}
+
+/* Valide les repas planifiés : déduit le stock, alimente la liste de courses. */
+async function validatePlan(list){
+  const {toBuy}=planNeeds(list);
+  // 1. Déduire le stock, en mémorisant ce qui a été pris (pour pouvoir l'annuler).
+  for(const m of list){
+    const r=recipes.find(x=>x.id===m.recipeId);
+    if(!r)continue;
+    const scale=m.base?(m.servings/m.base):1;
+    const consumed=[];
+    for(const ing of (r.ingredients||[])){
+      const cls=unitClass(ing.unit);
+      const need=ing.qty!=null?toBase(ing.qty*scale,ing.unit):null;
+      const c=await stockConsume(ing.name,need,cls);
+      if(c&&c.base!=null&&c.base>0)consumed.push(c);
+    }
+    m.consumed=consumed;
+    m.status='validated';
+    m.validatedAt=Date.now();
+    await save('meals',m);
+  }
+  // 2. Ne mettre dans les courses que le manque réel.
+  let n=0;
+  for(const b of toBuy){
+    for(const src of b.meals){
+      await addIngredientToShopping(
+        {name:b.name,unit:b.unit,qty:null},1,src.mealId,src.recipeName);
+    }
+    // La quantité agrégée est portée par l'article, une seule fois.
+    const it=findItemByKey(aggKey(b.name,b.unit));
+    if(it){
+      it.sources=it.sources.map(sx=>Object.assign({},sx,{base:null}));
+      it.manual=true;it.manualBase=b.base;
+      await save('shopping',it);
+    }
+    n++;
+  }
+  return n;
+}
+
+/* ======================================================================
+   Péremption et priorité des repas
+   ----------------------------------------------------------------------
+   Le compte à rebours démarre quand l'article est COCHÉ dans la liste de courses
+   (= acheté). L'échéance d'un repas est celle de son ingrédient le plus fragile.
+
+   Les durées sont des ordres de grandeur pour une conservation correcte (frigo quand il
+   le faut), volontairement PRUDENTS : mieux vaut alerter trop tôt que trop tard. Elles ne
+   remplacent ni la date sur l'emballage, ni le bon sens.
+   ====================================================================== */
+const DAY_MS=86400000;
+
+// [mot-clé, jours] — null = non périssable. Le mot-clé le plus long l'emporte,
+// ce qui permet à « lait de coco » (non périssable) de primer sur « lait » (5 jours).
+const SHELF_LIFE=[
+  // --- non périssables : priorité aux libellés longs ---
+  ['lait de coco',null],['lait concentre',null],['lait en poudre',null],['creme de coco',null],
+  ['tomates pelees',null],['tomate concassee',null],['tomates concassees',null],['concentre de tomate',null],
+  ['haricot sec',null],['pois casse',null],['sauce soja',null],['sauce tomate',null],
+  ['farine',null],['riz',null],['pate',null],['pates',null],['semoule',null],['quinoa',null],['boulgour',null],
+  ['lentille',null],['pois chiche',null],['conserve',null],['bocal',null],['huile',null],['vinaigre',null],
+  ['sel',null],['poivre',null],['epice',null],['curry',null],['curcuma',null],['paprika',null],['cumin',null],
+  ['muscade',null],['cannelle',null],['herbes de provence',null],['laurier',null],['thym seche',null],
+  ['sucre',null],['miel',null],['chocolat',null],['cacao',null],['cafe',null],['the',null],['bouillon',null],
+  ['moutarde',null],['ketchup',null],['mayonnaise',null],['confiture',null],['biscuit',null],['cereale',null],
+  ['levure',null],['maizena',null],['fecule',null],['chapelure',null],['olive',null],['cornichon',null],
+  ['amande',null],['noisette',null],['noix',null],['raisin sec',null],['pruneau',null],['vin',null],['biere',null],
+
+  // --- très fragile : 1 jour ---
+  ['viande hachee',1],['steak hache',1],['chair a saucisse',1],['fruits de mer',1],['coquillage',1],
+  ['moule',1],['huitre',1],['palourde',1],['crevette',1],['gambas',1],['saint jacques',1],['langoustine',1],
+  ['poisson',1],['saumon',1],['thon frais',1],['cabillaud',1],['colin',1],['merlu',1],['truite',1],
+  ['dorade',1],['sole',1],['sardine',1],['maquereau',1],['lotte',1],['rouget',1],['bar ',1],['calamar',1],['poulpe',1],
+
+  // --- 2 jours ---
+  ['poulet',2],['volaille',2],['dinde',2],['pintade',2],['canard',2],['lapin',2],['abats',2],['foie',2],
+  ['merguez',2],['saucisse',2],['chipolata',2],['boudin',2],['saumon fume',2],
+
+  // --- 3 jours ---
+  ['boeuf',3],['veau',3],['agneau',3],['porc',3],['steak',3],['entrecote',3],['bavette',3],['onglet',3],
+  ['roti',3],['gigot',3],['magret',3],['escalope',3],['champignon',3],['salade',3],['laitue',3],['roquette',3],
+  ['mache',3],['epinard',3],['persil',3],['basilic',3],['coriandre',3],['menthe',3],['ciboulette',3],['aneth',3],
+  ['creme fraiche',3],['creme liquide',3],['ricotta',3],['mascarpone',3],['pate fraiche',3],['herbe fraiche',3],
+
+  // --- 4 jours ---
+  ['lardon',4],['jambon',4],['bacon',4],['chorizo',4],['charcuterie',4],['pancetta',4],
+  ['mozzarella',4],['burrata',4],['chevre frais',4],['fromage frais',4],['feta',4],['tofu',4],
+
+  // --- 5 jours ---
+  ['lait',5],['brocoli',5],['chou fleur',5],['asperge',5],['haricot vert',5],['courgette',5],
+  ['concombre',5],['poireau',5],['celeri',5],['avocat',5],['fraise',5],['framboise',5],['myrtille',5],
+  ['cerise',5],['mure',5],['fenouil',5],['petit pois',5],['mais doux',5],
+
+  // --- 7 jours ---
+  ['tomate',7],['poivron',7],['aubergine',7],['radis',7],['endive',7],['artichaut',7],['banane',7],
+  ['peche',7],['abricot',7],['nectarine',7],['prune',7],['melon',7],['pasteque',7],['ananas',7],['mangue',7],
+  ['pain',7],['baguette',7],['tortilla',7],['wrap',7],['pate brisee',7],['pate feuilletee',7],['pate a pizza',7],
+
+  // --- 10 jours ---
+  ['yaourt',10],['fromage blanc',10],['faisselle',10],['brie',10],['camembert',10],['creme',10],
+
+  // --- 14 jours ---
+  ['carotte',14],['betterave',14],['navet',14],['chou',14],['citron',14],['orange',14],['clementine',14],
+  ['pamplemousse',14],['pomme',14],['poire',14],['kiwi',14],['courge',14],['potiron',14],['gingembre',14],
+
+  // --- 21 jours et plus ---
+  ['oeuf',21],['comte',21],['gruyere',21],['parmesan',21],['emmental',21],['cheddar',21],['beurre',21],
+  ['fromage',21],['pomme de terre',30],['patate douce',30],['oignon',30],['echalote',30],['ail',30],
+];
+const SHELF_MAP=SHELF_LIFE.slice().sort((a,b)=>b[0].length-a[0].length);
+
+/* Durée de conservation d'un ingrédient, en jours. null = non périssable ou inconnu. */
+function shelfLifeDays(name){
+  const n=normIng(name);
+  if(!n)return null;
+  // On teste aussi une forme dépluralisée : « pommes de terre » doit correspondre à
+  // « pomme de terre » (30 j) et non à « pomme » (14 j), qui en est un sous-ensemble.
+  const sing=n.replace(/s\b/g,'').replace(/\s+/g,' ').trim();
+  for(const [k,d] of SHELF_MAP){ if(n.includes(k)||sing.includes(k))return d; }
+  return null;
+}
+
+/* Jours calendaires entre aujourd'hui et une échéance (0 = aujourd'hui, négatif = dépassé). */
+function daysUntil(ts){
+  const a=new Date();a.setHours(0,0,0,0);
+  const b=new Date(ts);b.setHours(0,0,0,0);
+  return Math.round((b-a)/DAY_MS);
+}
+
+/* Échéance d'un repas : celle de son ingrédient acheté le plus fragile.
+   Un ingrédient pas encore acheté n'impose rien — le compte à rebours n'a pas commencé. */
+function mealDeadline(meal){
+  let best=null;
+  for(const it of shopping){
+    if(!it.checked||!it.checkedAt)continue;
+    if(!(it.sources||[]).some(s=>s.mealId===meal.id))continue;
+    const d=shelfLifeDays(it.name);
+    if(d==null)continue;
+    const ts=it.checkedAt+d*DAY_MS;
+    if(!best||ts<best.ts)best={ts,days:d,ingredient:it.name};
+  }
+  return best;
+}
+
+/* Libellé et niveau d'urgence. */
+function deadlineLabel(n){
+  if(n<0)return n===-1?'En retard d’un jour':('En retard de '+(-n)+' jours');
+  if(n===0)return 'À faire aujourd’hui';
+  if(n===1)return 'À faire demain';
+  if(n<=3)return 'À faire sous '+n+' jours';
+  const d=new Date(Date.now()+n*DAY_MS);
+  return 'Avant le '+d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+}
+function urgencyLevel(n){
+  if(n<0)return 'late';
+  if(n<=1)return 'soon';
+  if(n<=3)return 'warn';
+  return 'ok';
+}
+/* Tri : le plus urgent d'abord, puis les repas sans contrainte, puis les plus récents. */
+function sortMealsByPriority(list){
+  return list.slice().sort((a,b)=>{
+    const da=mealDeadline(a),db=mealDeadline(b);
+    if(da&&db)return da.ts-db.ts;
+    if(da)return -1;
+    if(db)return 1;
+    return b.createdAt-a.createdAt;
+  });
+}
+
+/* ======================================================================
+   Filtres de recettes
+   ----------------------------------------------------------------------
+   Tout est déduit des ingrédients déjà enregistrés : aucune ressaisie.
+   C'est une heuristique par mots-clés, pas une analyse nutritionnelle. Pour les filtres
+   d'exclusion (allergène, régime), on penche volontairement du côté prudent : en cas
+   d'ambiguïté on considère que l'ingrédient EST présent, quitte à masquer une recette à tort.
+   L'inverse — annoncer « sans gluten » à tort — serait autrement plus gênant.
+   ====================================================================== */
+function normIng(t){
+  return stripAccents(String(t||'').toLowerCase())
+    .replace(/['’`-]/g,' ').replace(/\s+/g,' ').trim();
+}
+// Exceptions végétales : vérifiées EN PREMIER, car « lait de coco » contient « lait »,
+// et « steak de soja » contient « steak ».
+const PLANT_OVERRIDES=['lait de coco','lait de soja','lait d amande','lait d avoine','lait de riz','lait de noisette','lait vegetal','boisson vegetale','creme de coco','creme de soja','creme vegetale','creme d amande','beurre de cacahuete','beurre d amande','beurre de coco','beurre de noisette','beurre vegetal','fromage vegetal','fromage vegan','yaourt de soja','yaourt vegetal','steak de soja','steak vegetal','saucisse vegetale','saucisse vegetarienne','jambon vegetal','lardons vegetaux','tofu','seitan','tempeh','proteine de soja','proteines de soja','chocolat noir','margarine'];
+const MEAT_FISH=['viande','boeuf','veau','porc','agneau','mouton','poulet','volaille','dinde','canard','oie','pintade','lapin','gibier','chevreuil','sanglier','cheval','jambon','lardon','bacon','saucisse','saucisson','chorizo','merguez','andouille','boudin','pancetta','guanciale','coppa','bresaola','salami','pepperoni','rillettes','foie gras','terrine','pate de campagne','confit de canard','magret','gigot','echine','travers','entrecote','steak','bavette','onglet','filet mignon','rosbif','hache','chipolata','poisson','saumon','thon','cabillaud','colin','lieu noir','merlu','truite','dorade','sole','sardine','maquereau','anchois','hareng','espadon','raie','lotte','rouget','surimi','crevette','gambas','moule','huitre','palourde','saint jacques','calamar','encornet','seiche','poulpe','crabe','homard','langoustine','ecrevisse','bulot','bigorneau','gelatine','saindoux','presure','nuoc mam','sauce de poisson','worcestershire','bouillon de volaille','bouillon de boeuf','fond de veau','fond de volaille','graisse de canard','tarama','caviar','oeufs de lump','poutargue','lard'];
+const DAIRY=['lait','beurre','creme','fromage','yaourt','parmesan','mozzarella','gruyere','emmental','comte','feta','ricotta','mascarpone','cheddar','camembert','brie','roquefort','gorgonzola','raclette','reblochon','mimolette','tomme','faisselle','petit suisse','kefir','ghee','babeurre','lactoserum','petit lait','chantilly','chevre','bleu d auvergne','mozzarella','burrata','creme fraiche'];
+const EGGS=['oeuf','blanc d oeuf','jaune d oeuf','mayonnaise'];
+const HONEY=['miel','gelee royale'];
+const PORK=['porc','lardon','jambon','bacon','saucisson','chorizo','andouille','boudin','pancetta','guanciale','coppa','rillettes','saindoux','jambonneau','echine','travers de porc','lard','cochon','chipolata','saucisse','pate de campagne','terrine'];
+const GLUTEN=['farine','ble','pate','pates','spaghetti','macaroni','tagliatelle','penne','fusilli','lasagne','ravioli','gnocchi','vermicelle','nouille','pain','baguette','brioche','biscotte','chapelure','semoule','couscous','boulgour','epeautre','seigle','orge','avoine','malt','biere','biscuit','gateau','croissant','feuillete','brisee','sablee','tortilla','wrap','crouton','sauce soja','son de ble','muesli','cereale','pizza','pancake','crepe','madeleine','speculoos'];
+const GLUTEN_FREE_OVERRIDES=['farine de riz','farine de mais','farine de sarrasin','farine de chataigne','farine de pois chiche','farine d amande','farine de coco','farine de manioc','pates sans gluten','pain sans gluten','sans gluten','tamari','nouilles de riz','vermicelle de riz','galette de sarrasin','polenta','maizena'];
+
+function hasAny(name,list){for(const k of list){if(name.includes(k))return true;}return false;}
+
+/* Renvoie les régimes compatibles d'une recette. */
+function dietFlags(r){
+  const names=(r.ingredients||[]).map(i=>normIng(i.name));
+  let meat=false,dairy=false,eggs=false,honey=false,pork=false,gluten=false;
+  for(const n of names){
+    const plant=hasAny(n,PLANT_OVERRIDES);
+    if(!plant){
+      if(hasAny(n,MEAT_FISH))meat=true;
+      if(hasAny(n,DAIRY))dairy=true;
+      if(hasAny(n,PORK))pork=true;
+    }
+    if(hasAny(n,EGGS))eggs=true;
+    if(hasAny(n,HONEY))honey=true;
+    if(!hasAny(n,GLUTEN_FREE_OVERRIDES)&&hasAny(n,GLUTEN))gluten=true;
+  }
+  return{
+    vege:!meat,
+    vegan:!meat&&!dairy&&!eggs&&!honey,
+    sansPorc:!pork,
+    sansLactose:!dairy,
+    sansGluten:!gluten
+  };
+}
+
+/* Le texte cherché porte à la fois sur le nom et sur les ingrédients :
+   « poulet » trouve la recette qui s'appelle Poulet basquaise comme celle qui en contient. */
+function recipeMatchesText(r,q){
+  const n=normIng(q);
+  if(!n)return true;
+  if(normIng(r.name).includes(n))return true;
+  return (r.ingredients||[]).some(i=>normIng(i.name).includes(n));
+}
+function recipeHasIngredient(r,q){
+  const n=normIng(q);
+  if(!n)return false;
+  return (r.ingredients||[]).some(i=>normIng(i.name).includes(n));
+}
+
+const FILTER_TAGS=[
+  {id:'vege',      label:'Végétarien', icon:'🌱'},
+  {id:'vegan',     label:'Végan',      icon:'🌿'},
+  {id:'sansPorc',  label:'Sans porc',  icon:'🚫'},
+  {id:'sansLactose',label:'Sans lactose',icon:'🥛'},
+  {id:'sansGluten',label:'Sans gluten',icon:'🌾'},
+  {id:'rapide',    label:'≤ 5 ingrédients',icon:'⚡'},
+  {id:'nouveau',   label:'Jamais cuisiné',icon:'✨'},
+];
+let rFilter={q:'',excl:'',tags:new Set(),src:''};
+
+function filterRecipes(list){
+  return list.filter(r=>{
+    if(rFilter.q&&!recipeMatchesText(r,rFilter.q))return false;
+    if(rFilter.excl&&recipeHasIngredient(r,rFilter.excl))return false;
+    if(rFilter.src&&(r.sourceType||'manual')!==rFilter.src)return false;
+    if(rFilter.tags.size){
+      const d=dietFlags(r);
+      for(const t of rFilter.tags){
+        if(t==='rapide'){ if((r.ingredients||[]).length>5)return false; }
+        else if(t==='nouveau'){ if(meals.some(m=>m.recipeId===r.id))return false; }
+        else if(!d[t])return false;
+      }
+    }
+    return true;
+  });
+}
+function filterActive(){return !!(rFilter.q||rFilter.excl||rFilter.src||rFilter.tags.size);}
+function resetFilter(){rFilter={q:'',excl:'',tags:new Set(),src:''};}
+
 /* ---------- État ---------- */
-let recipes=[],meals=[],shopping=[],settings={id:'app',proxy:''};
+let recipes=[],meals=[],shopping=[],stock=[],settings={id:'app',proxy:''};
 const alive=a=>a.filter(r=>!r.deleted);
 async function loadAll(){
   recipes=alive(await dbGetAll('recipes'));
   meals=alive(await dbGetAll('meals'));
   shopping=alive(await dbGetAll('shopping'));
+  stock=alive(await dbGetAll('stock'));
   const s=await dbGet('settings','app');if(s)settings=s;
 }
 
@@ -302,14 +740,22 @@ async function removeMealContributions(mealId){
     else await save('shopping',it);
   }
 }
+/* Un repas est d'abord PLANIFIÉ : rien ne part dans les courses tant que la semaine n'est
+   pas validée, puisque le stock peut déjà couvrir une partie des besoins. */
 async function addMeal(recipe,servings){
-  const meal={id:uid(),recipeId:recipe.id,recipeName:recipe.name,servings,base:recipe.servings||servings,createdAt:Date.now()};
+  const meal={id:uid(),recipeId:recipe.id,recipeName:recipe.name,servings,
+    base:recipe.servings||servings,createdAt:Date.now(),status:'planned'};
   meals.push(meal);await save('meals',meal);
-  const scale=meal.base?(servings/meal.base):1;let n=0;
-  for(const ing of (recipe.ingredients||[])){await addIngredientToShopping(ing,scale,meal.id,recipe.name);n++;}
-  return n;
+  return (recipe.ingredients||[]).length;
 }
-async function removeMeal(mealId){meals=meals.filter(m=>m.id!==mealId);await softDelete('meals',mealId);await removeMealContributions(mealId);}
+async function removeMeal(mealId){
+  const m=meals.find(x=>x.id===mealId);
+  // Repas validé : ce qui avait été prélevé dans le stock y retourne.
+  if(m&&m.consumed&&m.consumed.length)await stockRestore(m.consumed);
+  meals=meals.filter(x=>x.id!==mealId);
+  await softDelete('meals',mealId);
+  await removeMealContributions(mealId);
+}
 
 /* ======================================================================
    Import par lien
@@ -872,10 +1318,19 @@ async function testRelay(){
 const $=s=>document.querySelector(s);
 const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;};
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const TITLES={courses:'Courses',repas:'Repas à faire',recettes:'Recettes'};
+const TITLES={courses:'Courses',repas:'Repas à faire',stock:'Mon stock',recettes:'Recettes'};
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('show'),2400);}
 function setTab(tab){document.querySelectorAll('.tab').forEach(s=>s.classList.remove('active'));$('#tab-'+tab).classList.add('active');document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$('#bar-title').textContent=TITLES[tab];window.scrollTo(0,0);}
-function updateBadges(){const nc=shopping.filter(i=>!i.checked).length;const bc=$('#badge-courses');bc.hidden=nc===0;bc.textContent=nc;const bm=$('#badge-repas');bm.hidden=meals.length===0;bm.textContent=meals.length;}
+function updateBadges(){
+  const nc=shopping.filter(i=>!i.checked).length;
+  const bc=$('#badge-courses');bc.hidden=nc===0;bc.textContent=nc;
+  // Le badge Repas privilégie ce qui reste à valider : c'est l'action en attente.
+  const np=plannedMeals().length;
+  const bm=$('#badge-repas');
+  const nb=np||meals.length;
+  bm.hidden=nb===0;bm.textContent=nb;
+  const bs=$('#badge-stock');if(bs){bs.hidden=stock.length===0;bs.textContent=stock.length;}
+}
 
 function renderCourses(){
   const body=$('#courses-body');body.innerHTML='';
@@ -902,7 +1357,14 @@ function renderCourses(){
 function itemRow(it){
   const row=el('div','item'+(it.checked?' done':''));
   const chk=el('button','check');chk.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5L19 7"/></svg>';
-  chk.onclick=async()=>{it.checked=!it.checked;row.classList.toggle('done',it.checked);await save('shopping',it);setTimeout(()=>{renderCourses();updateBadges();},220);};
+  chk.onclick=async()=>{
+    it.checked=!it.checked;
+    // L'horodatage de l'achat démarre le compte à rebours de péremption.
+    if(it.checked)it.checkedAt=Date.now();else delete it.checkedAt;
+    row.classList.toggle('done',it.checked);
+    await save('shopping',it);
+    setTimeout(()=>{renderCourses();updateBadges();renderRepas();},220);
+  };
   const body=el('div','body');
   body.appendChild(el('div','name',it.name.charAt(0).toUpperCase()+it.name.slice(1)));
   const src=[...new Set(it.sources.map(s=>s.recipeName).filter(Boolean))];
@@ -925,26 +1387,97 @@ async function quickAdd(){
   await save('shopping',it);inp.value='';renderCourses();updateBadges();inp.focus();
 }
 
+function mealCard(m,dl){
+  const r=recipes.find(x=>x.id===m.recipeId);
+  const lvl=dl?urgencyLevel(daysUntil(dl.ts)):null;
+  const card=el('div','mcard'+(lvl&&lvl!=='ok'?' '+lvl:''));
+  const th=el('div','thumb');
+  if(r&&r.image)th.style.backgroundImage="url('"+r.image+"')";else th.textContent=(m.recipeName||'?').charAt(0).toUpperCase();
+  const b=el('div','body');
+  b.appendChild(el('div','title',m.recipeName));
+  b.appendChild(el('div','sub',(m.servings||'?')+' pers.'+(r?' · '+(r.ingredients?r.ingredients.length:0)+' ingrédients':'')));
+  if(dl){
+    const n=daysUntil(dl.ts);
+    const badge=el('div','dl '+lvl);
+    badge.textContent=(n<0?'⚠️ ':(n<=1?'⏰ ':'🕒 '))+deadlineLabel(n);
+    b.appendChild(badge);
+    // Dire QUEL ingrédient impose la date : c'est l'information actionnable.
+    b.appendChild(el('div','dl-why','à cause de : '+dl.ingredient));
+  }
+  const del=el('button','del');del.innerHTML='<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
+  del.style.cssText='flex:none;color:var(--muted);width:34px;height:34px;border-radius:9px;display:grid;place-items:center';
+  del.onclick=async()=>{await removeMeal(m.id);renderRepas();renderCourses();updateBadges();toast('Repas retiré — courses mises à jour');};
+  card.appendChild(th);card.appendChild(b);card.appendChild(del);
+  card.onclick=e=>{if(e.target.closest('.del'))return;if(r)openRecipeDetail(r);};
+  return card;
+}
+
 function renderRepas(){
   const body=$('#repas-body');body.innerHTML='';
   if(meals.length===0){body.appendChild(emptyState('🍽️','Aucun repas planifié','Choisis une recette : elle rejoint cette liste et ses ingrédients partent dans les courses.',{label:'Planifier un repas',fn:openMealPicker}));updateBadges();return;}
-  const eb=el('div','section-eyebrow');eb.innerHTML='À cuisiner <span class="count">· '+meals.length+'</span>';body.appendChild(eb);
-  const list=el('div','list');
-  meals.slice().sort((a,b)=>b.createdAt-a.createdAt).forEach(m=>{
-    const r=recipes.find(x=>x.id===m.recipeId);
-    const card=el('div','mcard');const th=el('div','thumb');
-    if(r&&r.image)th.style.backgroundImage="url('"+r.image+"')";else th.textContent=(m.recipeName||'?').charAt(0).toUpperCase();
-    const b=el('div','body');
-    b.appendChild(el('div','title',m.recipeName));
-    b.appendChild(el('div','sub',(m.servings||'?')+' pers.'+(r?' · '+(r.ingredients?r.ingredients.length:0)+' ingrédients':'')));
-    const del=el('button','del');del.innerHTML='<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
-    del.style.cssText='flex:none;color:var(--muted);width:34px;height:34px;border-radius:9px;display:grid;place-items:center';
-    del.onclick=async()=>{await removeMeal(m.id);renderRepas();renderCourses();updateBadges();toast('Repas retiré — courses mises à jour');};
-    card.appendChild(th);card.appendChild(b);card.appendChild(del);
-    card.onclick=e=>{if(e.target.closest('.del'))return;if(r)openRecipeDetail(r);};
-    list.appendChild(card);
-  });
-  body.appendChild(list);
+
+  // Les repas planifiés attendent la validation : ils n'ont ni courses ni échéance.
+  const planned=meals.filter(m=>mealStatus(m)==='planned');
+  const done=meals.filter(m=>mealStatus(m)!=='planned');
+  const sorted=sortMealsByPriority(done);
+  const withDl=[],without=[];
+  for(const m of sorted){const d=mealDeadline(m);(d?withDl:without).push({m,d});}
+
+  if(planned.length){
+    const res=planNeeds(planned);
+    const box=el('div','planbox');
+    box.innerHTML='<h4>'+planned.length+' repas à valider</h4><p>'
+      +(res.covered.length?'<b>'+res.covered.length+'</b> ingrédient'+(res.covered.length>1?'s':'')+' déjà dans ton stock · ':'')
+      +'<b>'+res.toBuy.length+'</b> à acheter</p>';
+    const go=el('button','btn btn-accent btn-block');go.style.marginTop='12px';
+    go.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Valider la semaine';
+    go.onclick=openValidatePlan;
+    box.appendChild(go);
+    body.appendChild(box);
+
+    const eb=el('div','section-eyebrow');
+    eb.innerHTML='📝 En attente de validation <span class="count">· '+planned.length+'</span>';
+    body.appendChild(eb);
+    const list=el('div','list');
+    planned.slice().sort((a,b)=>b.createdAt-a.createdAt).forEach(m=>{
+      const card=mealCard(m,null);
+      card.classList.add('planned');
+      const b=card.querySelector('.body');
+      if(b)b.appendChild(el('div','pill','planifié'));
+      list.appendChild(card);
+    });
+    body.appendChild(list);
+  }
+
+  // Bandeau d'alerte pour le cas le plus pressant.
+  if(withDl.length){
+    const n=daysUntil(withDl[0].d.ts);
+    if(n<=1){
+      const box=el('div','alertbox'+(n<0?'':' soon'));
+      const txt=n<0
+        ? 'À cuisiner sans attendre : '+withDl[0].m.recipeName+' ('+withDl[0].d.ingredient+' acheté il y a plus de '+withDl[0].d.days+' jours).'
+        : (n===0?'À cuisiner aujourd’hui : ':'À cuisiner demain : ')+withDl[0].m.recipeName+' — '+withDl[0].d.ingredient+'.';
+      box.innerHTML='<span class="ic">'+(n<0?'⚠️':'⏰')+'</span><span>'+esc(txt)+'</span>';
+      body.appendChild(box);
+    }
+  }
+
+  if(withDl.length){
+    const eb=el('div','section-eyebrow');
+    eb.innerHTML='⏱ En priorité <span class="count">· '+withDl.length+'</span>';
+    body.appendChild(eb);
+    const list=el('div','list');
+    withDl.forEach(x=>list.appendChild(mealCard(x.m,x.d)));
+    body.appendChild(list);
+  }
+  if(without.length){
+    const eb=el('div','section-eyebrow');
+    eb.innerHTML=(withDl.length?'Quand tu veux':'À cuisiner')+' <span class="count">· '+without.length+'</span>';
+    body.appendChild(eb);
+    const list=el('div','list');
+    without.forEach(x=>list.appendChild(mealCard(x.m,null)));
+    body.appendChild(list);
+  }
   const row=el('div','btn-row');const add=el('button','btn btn-primary btn-block');
   add.innerHTML='<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Planifier un repas';add.onclick=openMealPicker;
   row.appendChild(add);body.appendChild(row);
@@ -953,23 +1486,360 @@ function renderRepas(){
   body.appendChild(clr);updateBadges();
 }
 
+function recipeCard(r){
+  const card=el('div','rcard');const th=el('div','thumb');
+  if(r.image)th.style.backgroundImage="url('"+r.image+"')";else th.textContent=r.name.charAt(0).toUpperCase();
+  const b=el('div','body');b.appendChild(el('div','title',r.name));
+  const sub=el('div','sub');
+  const d=dietFlags(r);
+  let badges='';
+  if(d.vegan)badges=' &nbsp;🌿';else if(d.vege)badges=' &nbsp;🌱';
+  sub.innerHTML='<span class="tagsrc '+esc(r.sourceType||'manual')+'">'+esc(r.sourceType||'manuel')+'</span> &nbsp;'
+    +(r.ingredients?r.ingredients.length:0)+' ingrédients'+(r.servings?' · '+r.servings+' pers.':'')+badges;
+  b.appendChild(sub);
+  const go=el('div','chip');go.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>';
+  card.appendChild(th);card.appendChild(b);card.appendChild(go);
+  card.onclick=()=>openRecipeDetail(r);
+  return card;
+}
+
+/* La barre de filtres est construite UNE fois ; seule la liste est rafraîchie à chaque frappe,
+   sans quoi le champ de recherche perdrait le focus à chaque caractère. */
+function buildFilterBar(){
+  const bar=el('div','fbar');
+
+  const se=el('div','fsearch');
+  se.innerHTML='<svg class="mag" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+  const inp=el('input');inp.type='search';inp.placeholder='Nom ou ingrédient…';
+  inp.autocomplete='off';inp.value=rFilter.q;
+  const clr=el('button','clr');clr.innerHTML='<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+  clr.onclick=()=>{inp.value='';rFilter.q='';se.classList.remove('filled');refreshRecipeList();inp.focus();};
+  const syncFilled=()=>se.classList.toggle('filled',!!inp.value);
+  inp.oninput=()=>{rFilter.q=inp.value;syncFilled();refreshRecipeList();};
+  syncFilled();
+  se.appendChild(inp);se.appendChild(clr);bar.appendChild(se);
+
+  const chips=el('div','fchips');
+  const chipEls={};
+  FILTER_TAGS.forEach(t=>{
+    const b=el('button','fchip'+(rFilter.tags.has(t.id)?' on':''));
+    b.innerHTML='<span>'+t.icon+'</span>'+esc(t.label);
+    b.onclick=()=>{
+      if(rFilter.tags.has(t.id))rFilter.tags.delete(t.id);else rFilter.tags.add(t.id);
+      b.classList.toggle('on',rFilter.tags.has(t.id));
+      refreshRecipeList();
+    };
+    chipEls[t.id]=b;chips.appendChild(b);
+  });
+  const more=el('button','fchip more','＋ Plus');
+  chips.appendChild(more);
+  bar.appendChild(chips);
+
+  const adv=el('div','fadv');
+  const ex=el('div','field');ex.innerHTML='<label>Sans cet ingrédient</label>';
+  const exI=el('input');exI.type='search';exI.placeholder='ex. champignon';exI.value=rFilter.excl;exI.autocomplete='off';
+  exI.oninput=()=>{rFilter.excl=exI.value;refreshRecipeList();};
+  ex.appendChild(exI);adv.appendChild(ex);
+  const sf=el('div','field');sf.innerHTML='<label>Provenance</label>';
+  const sel=el('select');
+  [['','Toutes'],['marmiton','Marmiton'],['jow','Jow'],['photo','Photo (OCR)'],['manual','Saisie manuelle'],['web','Autre site']]
+    .forEach(([v,l])=>{const o=el('option',null,l);o.value=v;if(rFilter.src===v)o.selected=true;sel.appendChild(o);});
+  sel.onchange=()=>{rFilter.src=sel.value;refreshRecipeList();};
+  sf.appendChild(sel);adv.appendChild(sf);
+  more.onclick=()=>adv.classList.toggle('show');
+  bar.appendChild(adv);
+
+  bar._reset=()=>{
+    inp.value='';exI.value='';sel.value='';syncFilled();
+    Object.values(chipEls).forEach(b=>b.classList.remove('on'));
+    adv.classList.remove('show');
+  };
+  return bar;
+}
+
+function refreshRecipeList(){
+  const wrap=$('#rec-list');if(!wrap)return;
+  wrap.innerHTML='';
+  const shown=filterRecipes(recipes).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+
+  const info=el('div','fcount');
+  if(filterActive()){
+    info.appendChild(el('span',null,shown.length+' recette'+(shown.length>1?'s':'')+' sur '+recipes.length));
+    const rst=el('button',null,'Réinitialiser');
+    rst.onclick=()=>{resetFilter();const bar=$('#recettes-body').querySelector('.fbar');if(bar&&bar._reset)bar._reset();refreshRecipeList();};
+    info.appendChild(rst);
+  }else{
+    info.appendChild(el('span',null,'Ma bibliothèque · '+recipes.length+' recette'+(recipes.length>1?'s':'')));
+  }
+  wrap.appendChild(info);
+
+  if(shown.length===0){
+    wrap.appendChild(emptyState('🔍','Aucune recette ne correspond','Assouplis les filtres, ou vérifie l’orthographe de l’ingrédient recherché.',
+      {label:'Réinitialiser les filtres',fn:()=>{resetFilter();const bar=$('#recettes-body').querySelector('.fbar');if(bar&&bar._reset)bar._reset();refreshRecipeList();}}));
+    return;
+  }
+  const list=el('div','list');
+  shown.forEach(r=>list.appendChild(recipeCard(r)));
+  wrap.appendChild(list);
+}
+
+/* ---------- Onglet Stock ---------- */
+function renderStock(){
+  const body=$('#stock-body');if(!body)return;
+  body.innerHTML='';
+
+  const photo=el('button','btn btn-ghost btn-block');
+  photo.innerHTML='<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Remplir depuis une photo';
+  photo.onclick=openStockPhoto;photo.style.marginBottom='4px';
+  body.appendChild(photo);
+
+  if(stock.length===0){
+    body.appendChild(emptyState('\ud83e\uddfa','Ton stock est vide',
+      'Ajoute ce que tu as d\u00e9j\u00e0 (\u00ab 500 g de semoule \u00bb), ou photographie une \u00e9tag\u00e8re ou un ticket de caisse. Les repas valid\u00e9s ne feront alors acheter que le manque.',null));
+    updateBadges();return;
+  }
+
+  const groups={};
+  for(const it of stock){(groups[it.category]=groups[it.category]||[]).push(it);}
+  Object.keys(groups).sort((a,b)=>rayonOrder(a)-rayonOrder(b)).forEach(rid=>{
+    const meta=rayonMeta(rid);
+    const eb=el('div','section-eyebrow');
+    eb.innerHTML='<span class="rayon">'+meta.icon+'</span> '+esc(meta.label)+' <span class="count">\u00b7 '+groups[rid].length+'</span>';
+    body.appendChild(eb);
+    const list=el('div','list');
+    groups[rid].sort((a,b)=>a.name.localeCompare(b.name,'fr')).forEach(it=>{
+      const row=el('div','item');
+      const b=el('div','body');
+      b.appendChild(el('div','name',it.name.charAt(0).toUpperCase()+it.name.slice(1)));
+      row.appendChild(b);
+      const q=el('span','stq'+(it.base==null?' unk':''));
+      q.textContent=it.base==null?'en stock':fmtQty(it.base,it.cls,it.unit);
+      row.appendChild(q);
+      const del=el('button','del');del.innerHTML='<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
+      del.onclick=async e=>{e.stopPropagation();await stockRemove(it.id);renderStock();};
+      row.appendChild(del);
+      row.onclick=e=>{if(e.target.closest('.del'))return;openStockEdit(it);};
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+  });
+  const clr=el('button','btn btn-danger btn-block','Vider le stock');clr.style.marginTop='16px';
+  clr.onclick=async()=>{if(!confirm('Vider enti\u00e8rement le stock ?'))return;
+    for(const it of stock.slice())await stockRemove(it.id);renderStock();};
+  body.appendChild(clr);
+  updateBadges();
+}
+
+async function stockQuickAdd(){
+  const inp=$('#st-input');const v=inp.value.trim();if(!v)return;
+  const ing=parseIngredient(v);
+  await stockSet(ing.name,ing.qty,ing.unit);
+  inp.value='';renderStock();inp.focus();
+}
+
+function openStockEdit(it){
+  openSheet(it.name,c=>{
+    const f=el('div','field');f.innerHTML='<label>Quantit\u00e9 disponible</label>';
+    const row=el('div');row.style.cssText='display:flex;gap:9px';
+    const q=el('input');q.type='text';q.inputMode='decimal';q.placeholder='vide = quantit\u00e9 inconnue';
+    q.value=it.base==null?'':String(Math.round(it.base*100)/100).replace('.',',');
+    q.style.flex='1';
+    const u=el('input');u.type='text';u.placeholder='unit\u00e9';u.value=it.unit||'';u.style.width='96px';
+    row.appendChild(q);row.appendChild(u);f.appendChild(row);
+    f.appendChild(el('div','hint','Sans quantit\u00e9, l\u2019ingr\u00e9dient est consid\u00e9r\u00e9 comme disponible en quantit\u00e9 suffisante \u2014 pratique pour le placard (sel, \u00e9pices, farine).'));
+    c.appendChild(f);
+    const sv=el('button','btn btn-primary btn-block','Enregistrer');
+    sv.onclick=async()=>{
+      const raw=q.value.trim().replace(',','.');
+      const val=raw===''?null:parseFloat(raw);
+      it.unit=u.value.trim()||null;it.cls=unitClass(it.unit);
+      it.base=(val==null||isNaN(val))?null:toBase(val,it.unit);
+      await save('stock',it);closeSheet();renderStock();
+    };
+    c.appendChild(sv);
+    const rm=el('button','btn btn-danger btn-block','Retirer du stock');rm.style.marginTop='4px';
+    rm.onclick=async()=>{await stockRemove(it.id);closeSheet();renderStock();};
+    c.appendChild(rm);
+  });
+}
+
+/* ---------- Remplissage par photo ----------
+   La lecture brute d'une \u00e9tag\u00e8re produit un texte tr\u00e8s bruit\u00e9. On ne fait donc pas confiance
+   \u00e0 l'OCR seul : chaque ligne est rapproch\u00e9e d'un VOCABULAIRE connu (rayons, ingr\u00e9dients de tes
+   recettes, stock existant, table de conservation). Ce qui ne correspond \u00e0 rien est ignor\u00e9,
+   et rien n'est ajout\u00e9 sans confirmation. */
+function stockVocabulary(){
+  const v=new Map();
+  const add=n=>{const k=normIng(n);if(k.length>=3&&!v.has(k))v.set(k,n);};
+  for(const grp of RAYONS)grp[3].forEach(add);
+  for(const r of recipes)for(const i of (r.ingredients||[]))add(i.name);
+  for(const it of stock)add(it.name);
+  for(const pair of SHELF_MAP)if(pair[0])add(pair[0]);
+  return [...v.entries()].sort((a,b)=>b[0].length-a[0].length);
+}
+/* Rapprochement mot à mot, et non par sous-chaîne : sans cela « LAIT DEMI ECREME »
+   serait reconnu comme « crème », puisque « creme » est contenu dans « ecreme ».
+   On teste aussi une forme dépluralisée (« pois chiches » → « pois chiche »), et on
+   privilégie la correspondance la plus À GAUCHE : une étiquette commence par le produit
+   (« SEMOULE COUSCOUS 500G » désigne d'abord de la semoule). */
+function matchVocab(n,vocab){
+  const sing=n.replace(/s\b/g,'').replace(/\s+/g,' ').trim();
+  let best=null;
+  for(const pair of vocab){
+    const k=pair[0];
+    const re=new RegExp('(?:^|\\s)'+k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?:\\s|$)');
+    let pos=-1;
+    const m1=n.match(re);if(m1)pos=m1.index;
+    if(pos<0){const m2=sing.match(re);if(m2)pos=m2.index;}
+    if(pos<0)continue;
+    if(!best||pos<best.pos||(pos===best.pos&&k.length>best.k.length))best={k,label:pair[1],pos};
+  }
+  return best;
+}
+const RECEIPT_NOISE=/^(total|sous total|tva|carte|cb |especes|monnaie|rendu|merci|ticket|caisse|siret|magasin|client|remise|avantage|fidelite|qte|prix|eur)/i;
+
+function extractStockCandidates(text){
+  const vocab=stockVocabulary();
+  const out=[];const seen=new Set();
+  for(const raw of String(text||'').split(/\r?\n/)){
+    let line=cleanOcrLine(raw);
+    if(!line)continue;
+    if(RECEIPT_NOISE.test(normIng(line)))continue;
+    line=line.replace(/\b\d+[.,]\d{2}\s*(\u20ac|eur)\b/gi,' ').replace(/\bx\s*\d+\b/gi,' ').replace(/\s+/g,' ').trim();
+    const n=normIng(line);
+    if(n.length<3)continue;
+    const hit=matchVocab(n,vocab);
+    if(!hit)continue;
+    if(seen.has(hit.k))continue;
+    seen.add(hit.k);
+    let qty=null,unit=null;
+    const m=line.match(/(\d+[.,]?\d*)\s*(kg|g|ml|cl|dl|l)\b/i);
+    if(m){qty=parseFloat(m[1].replace(',','.'));unit=m[2].toLowerCase();}
+    out.push({name:hit.label,qty,unit,line});
+  }
+  return out;
+}
+
+function openStockPhoto(){
+  openSheet('Remplir depuis une photo',c=>{
+    const intro=el('div','hint');
+    intro.innerHTML='Deux usages : <b>un ticket de caisse</b> (le plus fiable \u2014 texte net, un produit par ligne) ou <b>une \u00e9tag\u00e8re de produits secs</b> (\u00e9tiquettes imprim\u00e9es). La lecture se fait sur ton t\u00e9l\u00e9phone, rien n\u2019est envoy\u00e9.<br><br>\u26a0\ufe0f Les fruits et l\u00e9gumes en vrac ne portent aucun texte : ils ne seront pas d\u00e9tect\u00e9s, ajoute-les \u00e0 la main.';
+    intro.style.marginBottom='14px';c.appendChild(intro);
+    const prev=el('img','preview');c.appendChild(prev);
+    const pick=el('label','btn btn-primary btn-block');
+    pick.innerHTML='<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Choisir une image';
+    const fi=el('input');fi.type='file';fi.accept='image/*';fi.style.display='none';
+    pick.appendChild(fi);c.appendChild(pick);
+    const prog=el('div','prog');prog.style.display='none';const bar=el('i');prog.appendChild(bar);c.appendChild(prog);
+    const status=el('div','hint');c.appendChild(status);
+    fi.onchange=async()=>{
+      const file=fi.files&&fi.files[0];if(!file)return;
+      prev.src=URL.createObjectURL(file);prev.style.display='block';
+      pick.style.display='none';prog.style.display='block';
+      status.textContent='Chargement du moteur OCR\u2026';bar.style.width='8%';
+      try{
+        const text=await ocrImage(file,pr=>{bar.style.width=Math.round(pr*100)+'%';if(pr>.34)status.textContent='Lecture du texte\u2026';});
+        const cands=extractStockCandidates(text);
+        if(!cands.length){
+          status.innerHTML='\u274c Aucun produit reconnu.<br>Essaie une photo plus nette et plus rapproch\u00e9e, ou un ticket de caisse.';
+          pick.style.display='';prog.style.display='none';fi.value='';return;
+        }
+        closeSheet();openStockConfirm(cands);
+      }catch(err){
+        status.innerHTML='\u274c '+esc(err.message);
+        pick.style.display='';prog.style.display='none';fi.value='';
+      }
+    };
+  });
+}
+
+function openStockConfirm(cands){
+  const chosen=new Set(cands.map((_,i)=>i));
+  openSheet('Produits d\u00e9tect\u00e9s',c=>{
+    const h=el('div','hint','D\u00e9coche ce qui est faux, puis ajoute au stock. Sans quantit\u00e9 lue, l\u2019ingr\u00e9dient compte comme disponible.');
+    h.style.marginBottom='12px';c.appendChild(h);
+    cands.forEach((cd,i)=>{
+      const row=el('div','item');
+      const chk=el('button','check');chk.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5L19 7"/></svg>';
+      const setOn=on=>{
+        row.classList.toggle('done',!on);
+        chk.style.background=on?'var(--leaf)':'';
+        chk.style.borderColor=on?'var(--leaf)':'';
+        const sv=chk.querySelector('svg');sv.style.opacity=on?'1':'0';sv.style.transform=on?'none':'scale(.4)';
+      };
+      chk.onclick=()=>{if(chosen.has(i))chosen.delete(i);else chosen.add(i);setOn(chosen.has(i));};
+      const b=el('div','body');
+      b.appendChild(el('div','name',cd.name));
+      b.appendChild(el('div','sub','lu : '+cd.line));
+      row.appendChild(chk);row.appendChild(b);
+      if(cd.qty!=null)row.appendChild(el('span','qty',fmtQty(toBase(cd.qty,cd.unit),unitClass(cd.unit),cd.unit)));
+      c.appendChild(row);setOn(true);
+    });
+    const add=el('button','btn btn-primary btn-block');add.style.marginTop='14px';
+    add.textContent='Ajouter au stock';
+    add.onclick=async()=>{
+      let n=0;
+      for(let i=0;i<cands.length;i++){
+        if(!chosen.has(i))continue;
+        await stockSet(cands[i].name,cands[i].qty,cands[i].unit);n++;
+      }
+      closeSheet();setTab('stock');renderStock();
+      toast(n+' produit'+(n>1?'s':'')+' ajout\u00e9'+(n>1?'s':'')+' au stock');
+    };
+    c.appendChild(add);
+  });
+}
+
+/* ---------- Validation de la semaine ---------- */
+function openValidatePlan(){
+  const list=plannedMeals();
+  if(!list.length){toast('Aucun repas en attente');return;}
+  const res=planNeeds(list);
+  const covered=res.covered,toBuy=res.toBuy;
+  openSheet('Valider la semaine',c=>{
+    const box=el('div','planbox');
+    box.innerHTML='<h4>'+list.length+' repas \u00e0 valider</h4><p>'
+      +(covered.length?covered.length+' ingr\u00e9dient'+(covered.length>1?'s':'')+' d\u00e9j\u00e0 en stock \u00b7 ':'')
+      +toBuy.length+' \u00e0 acheter</p>';
+    c.appendChild(box);
+    if(covered.length){
+      c.appendChild(sectionEyebrow('D\u00e9j\u00e0 en stock',covered.length));
+      const w=el('div','planbox');
+      covered.forEach(x=>{
+        const l=el('div','planline cov');
+        l.appendChild(el('span',null,x.name+(x.partial?' (partiellement)':'')));
+        l.appendChild(el('span','q',(x.exact&&x.used!=null)?fmtQty(x.used,x.cls,x.unit):'\u2713'));
+        w.appendChild(l);
+      });
+      c.appendChild(w);
+    }
+    c.appendChild(sectionEyebrow('\u00c0 acheter',toBuy.length));
+    const w2=el('div','planbox');
+    if(!toBuy.length)w2.appendChild(el('div','hint','Rien \u00e0 acheter : ton stock couvre toute la semaine.'));
+    toBuy.forEach(x=>{
+      const l=el('div','planline');
+      l.appendChild(el('span',null,x.name));
+      l.appendChild(el('span','q',x.base!=null?fmtQty(x.base,x.cls,x.unit):''));
+      w2.appendChild(l);
+    });
+    c.appendChild(w2);
+    const btn=el('button','btn btn-accent btn-block');btn.style.marginTop='14px';
+    btn.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Valider et g\u00e9n\u00e9rer les courses';
+    btn.onclick=async()=>{
+      const n=await validatePlan(list);
+      closeSheet();renderAll();setTab('courses');
+      toast(n?(n+' article'+(n>1?'s':'')+' ajout\u00e9'+(n>1?'s':'')+' aux courses'):'Rien \u00e0 acheter \u2014 tout est en stock');
+    };
+    c.appendChild(btn);
+  });
+}
+
 function renderRecettes(){
   const body=$('#recettes-body');body.innerHTML='';
   if(recipes.length===0){body.appendChild(emptyState('📖','Pas encore de recette','Importe depuis un lien Marmiton ou Jow, depuis une capture d’écran, ou crée une recette à la main.',null));return;}
-  const eb=el('div','section-eyebrow');eb.innerHTML='Ma bibliothèque <span class="count">· '+recipes.length+'</span>';body.appendChild(eb);
-  const list=el('div','list');
-  recipes.slice().sort((a,b)=>a.name.localeCompare(b.name,'fr')).forEach(r=>{
-    const card=el('div','rcard');const th=el('div','thumb');
-    if(r.image)th.style.backgroundImage="url('"+r.image+"')";else th.textContent=r.name.charAt(0).toUpperCase();
-    const b=el('div','body');b.appendChild(el('div','title',r.name));
-    const sub=el('div','sub');
-    sub.innerHTML='<span class="tagsrc '+esc(r.sourceType||'manual')+'">'+esc(r.sourceType||'manuel')+'</span> &nbsp;'+(r.ingredients?r.ingredients.length:0)+' ingrédients'+(r.servings?' · '+r.servings+' pers.':'');
-    b.appendChild(sub);
-    const go=el('div','chip');go.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>';
-    card.appendChild(th);card.appendChild(b);card.appendChild(go);
-    card.onclick=()=>openRecipeDetail(r);list.appendChild(card);
-  });
-  body.appendChild(list);
+  body.appendChild(buildFilterBar());
+  const wrap=el('div');wrap.id='rec-list';body.appendChild(wrap);
+  refreshRecipeList();
 }
 function emptyState(glyph,title,text,action){
   const e=el('div','empty');
@@ -987,14 +1857,27 @@ function sectionEyebrow(label,count){const eb=el('div','section-eyebrow');eb.inn
 function openMealPicker(){
   if(recipes.length===0){openSheet('Planifier un repas',c=>{c.appendChild(emptyState('📖','Aucune recette','Ajoute d’abord une recette pour pouvoir planifier un repas.',{label:'Importer une recette',fn:()=>{closeSheet();openImport();}}));});return;}
   openSheet('Choisir une recette',c=>{
-    recipes.slice().sort((a,b)=>a.name.localeCompare(b.name,'fr')).forEach(r=>{
-      const row=el('div','pickrow');const th=el('div','thumb');
-      if(r.image)th.style.backgroundImage="url('"+r.image+"')";else th.textContent=r.name.charAt(0).toUpperCase();
-      const t=el('div','t',r.name);const go=el('div','go');
-      go.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>';
-      row.appendChild(th);row.appendChild(t);row.appendChild(go);
-      row.onclick=()=>openServingsStep(r);c.appendChild(row);
-    });
+    // Recherche locale à la feuille : n'affecte pas les filtres de l'onglet Recettes.
+    const se=el('div','fsearch');
+    se.innerHTML='<svg class="mag" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+    const inp=el('input');inp.type='search';inp.placeholder='Nom ou ingrédient…';inp.autocomplete='off';
+    se.appendChild(inp);c.appendChild(se);
+    const rows=el('div');c.appendChild(rows);
+    function draw(){
+      rows.innerHTML='';
+      const q=inp.value;
+      const list=recipes.filter(r=>recipeMatchesText(r,q)).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+      if(!list.length){rows.appendChild(el('div','hint','Aucune recette ne correspond.'));return;}
+      list.forEach(r=>{
+        const row=el('div','pickrow');const th=el('div','thumb');
+        if(r.image)th.style.backgroundImage="url('"+r.image+"')";else th.textContent=r.name.charAt(0).toUpperCase();
+        const t=el('div','t',r.name);const go=el('div','go');
+        go.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>';
+        row.appendChild(th);row.appendChild(t);row.appendChild(go);
+        row.onclick=()=>openServingsStep(r);rows.appendChild(row);
+      });
+    }
+    inp.oninput=draw;draw();
   });
 }
 function openServingsStep(recipe){
@@ -1023,6 +1906,12 @@ function openRecipeDetail(r){
     if(r.image){const im=el('div');im.style.cssText='height:150px;border-radius:14px;background:#eee center/cover no-repeat;margin-bottom:14px;box-shadow:var(--shadow)';im.style.backgroundImage="url('"+r.image+"')";c.appendChild(im);}
     const meta=el('div','hint');const bits=['<span class="tagsrc '+esc(r.sourceType||'manual')+'">'+esc(r.sourceType||'manuel')+'</span>'];
     if(r.servings)bits.push(r.servings+' pers.');if(r.cook)bits.push('cuisson '+r.cook+' min');
+    const df=dietFlags(r);
+    const tags=[];
+    if(df.vegan)tags.push('🌿 végan');else if(df.vege)tags.push('🌱 végétarien');
+    if(df.sansGluten)tags.push('🌾 sans gluten');
+    if(df.sansLactose)tags.push('🥛 sans lactose');
+    if(tags.length)bits.push(tags.join(' &nbsp;·&nbsp; '));
     meta.innerHTML=bits.join(' &nbsp;·&nbsp; ');meta.style.marginBottom='14px';c.appendChild(meta);
     const add=el('button','btn btn-accent btn-block');
     add.innerHTML='<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Ajouter aux repas';
@@ -1454,9 +2343,11 @@ function openSettings(){
 }
 
 /* ---------- Câblage ---------- */
-function renderAll(){renderCourses();renderRepas();renderRecettes();updateBadges();}
+function renderAll(){renderCourses();renderRepas();renderStock();renderRecettes();updateBadges();}
 document.querySelectorAll('nav.tabbar button').forEach(b=>{b.onclick=()=>setTab(b.dataset.tab);});
 $('#qa-btn').onclick=quickAdd;
+const _stb=$('#st-btn');if(_stb)_stb.onclick=stockQuickAdd;
+const _sti=$('#st-input');if(_sti)_sti.addEventListener('keydown',e=>{if(e.key==='Enter')stockQuickAdd();});
 $('#qa-input').addEventListener('keydown',e=>{if(e.key==='Enter')quickAdd();});
 $('#btn-settings').onclick=openSettings;
 $('#btn-import').onclick=()=>openImport();
@@ -1466,7 +2357,7 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
    suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
    lui-même a changé : on propose alors un rechargement en un geste. */
-const APP_VERSION='1.5.0';
+const APP_VERSION='1.8.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
