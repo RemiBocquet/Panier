@@ -181,7 +181,7 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .alertbox.soon{background:#fdeede;color:#8a5714}
 .alertbox .ic{flex:none;font-size:19px;line-height:1.1}
 /* --- barre de filtres --- */
-.fbar{margin-bottom:6px}
+.fbar{margin-top:14px;margin-bottom:6px}
 .fsearch{position:relative;margin-bottom:9px}
 .fsearch input{width:100%;border:1.5px solid var(--hair);background:var(--card);border-radius:12px;padding:12px 40px 12px 38px;outline:none;transition:.15s}
 .fsearch input:focus{border-color:var(--pine-l);box-shadow:0 0 0 3px rgba(47,107,88,.12)}
@@ -516,19 +516,18 @@ const SHELF_LIFE=[
   ['levure',null],['maizena',null],['fecule',null],['chapelure',null],['olive',null],['cornichon',null],
   ['amande',null],['noisette',null],['noix',null],['raisin sec',null],['pruneau',null],['vin',null],['biere',null],
 
-  // --- très fragile : 1 jour ---
-  ['viande hachee',1],['steak hache',1],['chair a saucisse',1],['fruits de mer',1],['coquillage',1],
-  ['moule',1],['huitre',1],['palourde',1],['crevette',1],['gambas',1],['saint jacques',1],['langoustine',1],
-  ['poisson',1],['saumon',1],['thon frais',1],['cabillaud',1],['colin',1],['merlu',1],['truite',1],
-  ['dorade',1],['sole',1],['sardine',1],['maquereau',1],['lotte',1],['rouget',1],['bar ',1],['calamar',1],['poulpe',1],
-
-  // --- 2 jours ---
-  ['poulet',2],['volaille',2],['dinde',2],['pintade',2],['canard',2],['lapin',2],['abats',2],['foie',2],
-  ['merguez',2],['saucisse',2],['chipolata',2],['boudin',2],['saumon fume',2],
-
-  // --- 3 jours ---
+  // --- 3 jours : viande et poisson frais ---
+  ['viande hachee',3],['steak hache',3],['chair a saucisse',3],['fruits de mer',3],['coquillage',3],
+  ['moule',3],['huitre',3],['palourde',3],['crevette',3],['gambas',3],['saint jacques',3],['langoustine',3],
+  ['poisson',3],['saumon',3],['thon frais',3],['cabillaud',3],['colin',3],['merlu',3],['truite',3],
+  ['dorade',3],['sole',3],['sardine',3],['maquereau',3],['lotte',3],['rouget',3],['bar ',3],['calamar',3],['poulpe',3],
+  ['poulet',3],['volaille',3],['dinde',3],['pintade',3],['canard',3],['lapin',3],['abats',3],['foie',3],
+  ['merguez',3],['saucisse',3],['chipolata',3],['boudin',3],['saumon fume',3],
   ['boeuf',3],['veau',3],['agneau',3],['porc',3],['steak',3],['entrecote',3],['bavette',3],['onglet',3],
-  ['roti',3],['gigot',3],['magret',3],['escalope',3],['champignon',3],['salade',3],['laitue',3],['roquette',3],
+  ['roti',3],['gigot',3],['magret',3],['escalope',3],
+
+  // --- 3 jours : légumes fragiles, herbes fraîches, crème ---
+  ['champignon',3],['salade',3],['laitue',3],['roquette',3],
   ['mache',3],['epinard',3],['persil',3],['basilic',3],['coriandre',3],['menthe',3],['ciboulette',3],['aneth',3],
   ['creme fraiche',3],['creme liquide',3],['ricotta',3],['mascarpone',3],['pate fraiche',3],['herbe fraiche',3],
 
@@ -1728,30 +1727,40 @@ function openStockPhoto(){
     intro.innerHTML='Deux usages : <b>un ticket de caisse</b> (le plus fiable \u2014 texte net, un produit par ligne) ou <b>une \u00e9tag\u00e8re de produits secs</b> (\u00e9tiquettes imprim\u00e9es). La lecture se fait sur ton t\u00e9l\u00e9phone, rien n\u2019est envoy\u00e9.<br><br>\u26a0\ufe0f Les fruits et l\u00e9gumes en vrac ne portent aucun texte : ils ne seront pas d\u00e9tect\u00e9s, ajoute-les \u00e0 la main.';
     intro.style.marginBottom='14px';c.appendChild(intro);
     const prev=el('img','preview');c.appendChild(prev);
-    const pick=el('label','btn btn-primary btn-block');
+
+    const cam=el('label','btn btn-primary btn-block');cam.style.marginBottom='8px';
+    cam.innerHTML='<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Prendre une photo';
+    const fiCam=el('input');fiCam.type='file';fiCam.accept='image/*';fiCam.capture='environment';fiCam.style.display='none';
+    cam.appendChild(fiCam);c.appendChild(cam);
+
+    const pick=el('label','btn btn-ghost btn-block');
     pick.innerHTML='<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Choisir une image';
     const fi=el('input');fi.type='file';fi.accept='image/*';fi.style.display='none';
     pick.appendChild(fi);c.appendChild(pick);
+
     const prog=el('div','prog');prog.style.display='none';const bar=el('i');prog.appendChild(bar);c.appendChild(prog);
     const status=el('div','hint');c.appendChild(status);
-    fi.onchange=async()=>{
-      const file=fi.files&&fi.files[0];if(!file)return;
+    const buttons=[cam,pick];
+    const handle=async file=>{
+      if(!file)return;
       prev.src=URL.createObjectURL(file);prev.style.display='block';
-      pick.style.display='none';prog.style.display='block';
+      buttons.forEach(b=>b.style.display='none');prog.style.display='block';
       status.textContent='Chargement du moteur OCR\u2026';bar.style.width='8%';
       try{
         const text=await ocrImage(file,pr=>{bar.style.width=Math.round(pr*100)+'%';if(pr>.34)status.textContent='Lecture du texte\u2026';});
         const cands=extractStockCandidates(text);
         if(!cands.length){
           status.innerHTML='\u274c Aucun produit reconnu.<br>Essaie une photo plus nette et plus rapproch\u00e9e, ou un ticket de caisse.';
-          pick.style.display='';prog.style.display='none';fi.value='';return;
+          buttons.forEach(b=>b.style.display='');prog.style.display='none';fiCam.value='';fi.value='';return;
         }
         closeSheet();openStockConfirm(cands);
       }catch(err){
         status.innerHTML='\u274c '+esc(err.message);
-        pick.style.display='';prog.style.display='none';fi.value='';
+        buttons.forEach(b=>b.style.display='');prog.style.display='none';fiCam.value='';fi.value='';
       }
     };
+    fiCam.onchange=()=>handle(fiCam.files&&fiCam.files[0]);
+    fi.onchange=()=>handle(fi.files&&fi.files[0]);
   });
 }
 

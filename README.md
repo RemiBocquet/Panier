@@ -138,9 +138,7 @@ Un repas dont les ingrédients ne sont pas encore achetés n'affiche aucune éch
 
 | Durée | Exemples |
 |---|---|
-| 1 j | poisson, fruits de mer, viande hachée |
-| 2 j | volaille, saucisse, merguez, abats |
-| 3 j | viande rouge, champignons, salade, herbes fraîches, crème |
+| 3 j | viande, poisson, volaille, charcuterie fraîche, champignons, salade, herbes fraîches, crème |
 | 4 j | lardons, jambon, mozzarella, tofu |
 | 5 j | lait, courgette, brocoli, fruits rouges |
 | 7 j | tomate, poivron, aubergine, pain, pâte à tarte |
