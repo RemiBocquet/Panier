@@ -136,21 +136,36 @@ Un repas dont les ingrédients ne sont pas encore achetés n'affiche aucune éch
 
 ### Les durées de conservation
 
+Les durées visent la date de péremption d'un produit **fermé**, à partir de son achat — pas sa
+fragilité une fois entamé. C'est cohérent avec le départ du compte à rebours : au moment où
+l'article est coché dans les courses, il vient d'être acheté, donc encore scellé. Un yaourt,
+une mozzarella ou des raviolis sous emballage tiennent ainsi plusieurs semaines, même s'ils
+deviennent fragiles en quelques jours une fois ouverts — à surveiller une fois le produit
+entamé, ce que l'app ne peut pas savoir.
+
 | Durée | Exemples |
 |---|---|
-| 3 j | viande, poisson, volaille, charcuterie fraîche, champignons, salade, herbes fraîches, crème |
-| 4 j | lardons, jambon, mozzarella, tofu |
-| 5 j | lait, courgette, brocoli, fruits rouges |
-| 7 j | tomate, poivron, aubergine, pain, pâte à tarte |
-| 10 j | yaourt, fromage blanc, brie, camembert |
+| 3 j | viande, volaille et poisson crus non transformés (frais, jamais fumés/cuits) |
+| 5 j | champignons, salade et légumes-feuilles en sachet, burrata |
+| 7 j | herbes fraîches en sachet, **lait frais** (pasteurisé, rayon réfrigéré), tomate, poivron, pain |
 | 14 j | carotte, chou, agrumes, pomme, courge |
-| 21 j | œufs, beurre, fromages à pâte dure |
-| 30 j | pommes de terre, oignon, ail |
-| — | farine, riz, pâtes, conserves, épices, huile… (aucune contrainte) |
+| 21 j | yaourt, fromage blanc, brie, camembert, mozzarella, fromage frais, tofu, crème (en pot/brique scellé), charcuterie et fumé/curé (jambon, lardons, bacon, chorizo, saumon fumé), pâtes/pâtons scellés (raviolis, tortellini, pâte à tarte, tortilla) |
+| 30 j | beurre, pommes de terre, oignon, ail |
+| 90 j | feta |
+| — | farine, riz, pâtes, conserves, épices, huile, fromages à pâte dure (comté, gruyère, parmesan, emmental, cheddar…), **lait** (UHT par défaut) (aucune contrainte) |
 
-Les valeurs sont volontairement prudentes : mieux vaut être alerté trop tôt que trop tard.
+« Lait » seul est traité comme du lait longue conservation (UHT) : c'est le cas largement
+majoritaire en France, et il se garde des mois tant qu'il n'est pas ouvert. Précise « lait
+frais » si c'est effectivement du lait pasteurisé au rayon réfrigéré, plus fragile (7 j).
+
+Les valeurs restent volontairement prudentes : mieux vaut être alerté trop tôt que trop tard.
 Ce sont des ordres de grandeur pour une conservation correcte, **pas une garantie sanitaire** :
-la date sur l'emballage prime toujours.
+la date sur l'emballage prime toujours, et un produit entamé se garde toujours moins longtemps
+qu'un produit fermé.
+
+Ces valeurs sont modifiables une par une dans Réglages → **Modifier les durées de péremption**
+(recherche par nom, remise à zéro individuelle ou globale). C'est un réglage propre à l'appareil,
+non synchronisé entre tes deux téléphones.
 
 ### Confidentialité
 

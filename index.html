@@ -494,16 +494,24 @@ async function validatePlan(list){
    Le compte à rebours démarre quand l'article est COCHÉ dans la liste de courses
    (= acheté). L'échéance d'un repas est celle de son ingrédient le plus fragile.
 
-   Les durées sont des ordres de grandeur pour une conservation correcte (frigo quand il
-   le faut), volontairement PRUDENTS : mieux vaut alerter trop tôt que trop tard. Elles ne
-   remplacent ni la date sur l'emballage, ni le bon sens.
+   Les durées visent la date de péremption réelle d'un produit FERMÉ, à partir de son achat —
+   pas sa fragilité une fois entamé. C'est cohérent avec le départ du compte à rebours : au
+   moment où l'article est coché, il vient d'être acheté, donc encore scellé. Un yaourt, une
+   mozzarella ou des raviolis sous emballage tiennent ainsi des semaines, même s'ils deviennent
+   fragiles en quelques jours une fois ouverts — à surveiller une fois le produit entamé, ce que
+   l'app ne peut pas savoir. Les valeurs restent volontairement PRUDENTES : mieux vaut alerter
+   trop tôt que trop tard. Elles ne remplacent ni la date sur l'emballage, ni le bon sens.
    ====================================================================== */
 const DAY_MS=86400000;
 
 // [mot-clé, jours] — null = non périssable. Le mot-clé le plus long l'emporte,
-// ce qui permet à « lait de coco » (non périssable) de primer sur « lait » (5 jours).
+// ce qui permet à « lait frais » (7 jours, cas marginal) de primer sur « lait » seul
+// (non périssable : par défaut on suppose du lait longue conservation UHT, largement majoritaire).
 const SHELF_LIFE=[
   // --- non périssables : priorité aux libellés longs ---
+  // « lait » sans précision = UHT par défaut, très largement majoritaire en France, et se garde
+  // des mois tant qu'il n'est pas ouvert.
+  ['lait',null],
   ['lait de coco',null],['lait concentre',null],['lait en poudre',null],['creme de coco',null],
   ['tomates pelees',null],['tomate concassee',null],['tomates concassees',null],['concentre de tomate',null],
   ['haricot sec',null],['pois casse',null],['sauce soja',null],['sauce tomate',null],
@@ -515,57 +523,72 @@ const SHELF_LIFE=[
   ['moutarde',null],['ketchup',null],['mayonnaise',null],['confiture',null],['biscuit',null],['cereale',null],
   ['levure',null],['maizena',null],['fecule',null],['chapelure',null],['olive',null],['cornichon',null],
   ['amande',null],['noisette',null],['noix',null],['raisin sec',null],['pruneau',null],['vin',null],['biere',null],
+  // Fromages à pâte dure/pressée : ils sèchent et perdent en goût, mais ne deviennent pas
+  // dangereux — pas de compte à rebours, comme pour le reste de cette liste.
+  ['comte',null],['gruyere',null],['parmesan',null],['emmental',null],['cheddar',null],
 
-  // --- 3 jours : viande et poisson frais ---
+  // --- 3 jours : viande, volaille et poisson crus, non transformés ---
+  // Ces produits restent fragiles même sous film scellé : la DLC d'un plateau de viande ou de
+  // poisson frais au rayon libre-service est réellement de quelques jours, ouvert ou non.
   ['viande hachee',3],['steak hache',3],['chair a saucisse',3],['fruits de mer',3],['coquillage',3],
   ['moule',3],['huitre',3],['palourde',3],['crevette',3],['gambas',3],['saint jacques',3],['langoustine',3],
   ['poisson',3],['saumon',3],['thon frais',3],['cabillaud',3],['colin',3],['merlu',3],['truite',3],
   ['dorade',3],['sole',3],['sardine',3],['maquereau',3],['lotte',3],['rouget',3],['bar ',3],['calamar',3],['poulpe',3],
   ['poulet',3],['volaille',3],['dinde',3],['pintade',3],['canard',3],['lapin',3],['abats',3],['foie',3],
-  ['merguez',3],['saucisse',3],['chipolata',3],['boudin',3],['saumon fume',3],
+  ['merguez',3],['saucisse',3],['chipolata',3],['boudin',3],
   ['boeuf',3],['veau',3],['agneau',3],['porc',3],['steak',3],['entrecote',3],['bavette',3],['onglet',3],
   ['roti',3],['gigot',3],['magret',3],['escalope',3],
 
-  // --- 3 jours : légumes fragiles, herbes fraîches, crème ---
-  ['champignon',3],['salade',3],['laitue',3],['roquette',3],
-  ['mache',3],['epinard',3],['persil',3],['basilic',3],['coriandre',3],['menthe',3],['ciboulette',3],['aneth',3],
-  ['creme fraiche',3],['creme liquide',3],['ricotta',3],['mascarpone',3],['pate fraiche',3],['herbe fraiche',3],
-
-  // --- 4 jours ---
-  ['lardon',4],['jambon',4],['bacon',4],['chorizo',4],['charcuterie',4],['pancetta',4],
-  ['mozzarella',4],['burrata',4],['chevre frais',4],['fromage frais',4],['feta',4],['tofu',4],
-
-  // --- 5 jours ---
-  ['lait',5],['brocoli',5],['chou fleur',5],['asperge',5],['haricot vert',5],['courgette',5],
+  // --- 5 jours : légumes-feuilles et champignons en sachet/barquette ---
+  ['champignon',5],['salade',5],['laitue',5],['roquette',5],['mache',5],['epinard',5],
+  ['brocoli',5],['chou fleur',5],['asperge',5],['haricot vert',5],['courgette',5],
   ['concombre',5],['poireau',5],['celeri',5],['avocat',5],['fraise',5],['framboise',5],['myrtille',5],
   ['cerise',5],['mure',5],['fenouil',5],['petit pois',5],['mais doux',5],
+  // Burrata : coque fine, cœur crémeux cru — reste fragile même scellée, contrairement aux
+  // autres fromages ci-dessous.
+  ['burrata',5],
 
-  // --- 7 jours ---
-  ['tomate',7],['poivron',7],['aubergine',7],['radis',7],['endive',7],['artichaut',7],['banane',7],
+  // --- 7 jours : herbes fraîches en sachet, lait frais, fruits & légumes plus robustes ---
+  ['persil',7],['basilic',7],['coriandre',7],['menthe',7],['ciboulette',7],['aneth',7],['herbe fraiche',7],
+  ['lait frais',7],['tomate',7],['poivron',7],['aubergine',7],['radis',7],['endive',7],['artichaut',7],['banane',7],
   ['peche',7],['abricot',7],['nectarine',7],['prune',7],['melon',7],['pasteque',7],['ananas',7],['mangue',7],
-  ['pain',7],['baguette',7],['tortilla',7],['wrap',7],['pate brisee',7],['pate feuilletee',7],['pate a pizza',7],
+  ['pain',7],['baguette',7],
 
-  // --- 10 jours ---
-  ['yaourt',10],['fromage blanc',10],['faisselle',10],['brie',10],['camembert',10],['creme',10],
-
-  // --- 14 jours ---
+  // --- 14 jours : légumes de garde, agrumes ---
   ['carotte',14],['betterave',14],['navet',14],['chou',14],['citron',14],['orange',14],['clementine',14],
   ['pamplemousse',14],['pomme',14],['poire',14],['kiwi',14],['courge',14],['potiron',14],['gingembre',14],
 
-  // --- 21 jours et plus ---
-  ['oeuf',21],['comte',21],['gruyere',21],['parmesan',21],['emmental',21],['cheddar',21],['beurre',21],
-  ['fromage',21],['pomme de terre',30],['patate douce',30],['oignon',30],['echalote',30],['ail',30],
+  // --- 21 jours : produits laitiers, fromages frais, charcuterie et pâtes/pâtons scellés ---
+  // Tant que l'emballage est fermé, ces produits tiennent facilement 3 semaines — c'est une
+  // fois ouverts qu'ils deviennent fragiles, ce que l'app ne peut pas détecter.
+  ['oeuf',21],['fromage',21],
+  ['yaourt',21],['fromage blanc',21],['faisselle',21],['brie',21],['camembert',21],
+  ['mozzarella',21],['chevre frais',21],['fromage frais',21],['ricotta',21],['mascarpone',21],['tofu',21],
+  ['creme fraiche',21],['creme liquide',21],['creme',21],
+  ['saumon fume',21],['lardon',21],['jambon',21],['bacon',21],['chorizo',21],['charcuterie',21],['pancetta',21],
+  ['pate fraiche',21],['ravioli',21],['tortellini',21],
+  ['tortilla',21],['wrap',21],['pate brisee',21],['pate feuilletee',21],['pate a pizza',21],
+
+  // --- 30 jours et plus ---
+  ['beurre',30],['pomme de terre',30],['patate douce',30],['oignon',30],['echalote',30],['ail',30],
+  ['feta',90],
 ];
 const SHELF_MAP=SHELF_LIFE.slice().sort((a,b)=>b[0].length-a[0].length);
 
-/* Durée de conservation d'un ingrédient, en jours. null = non périssable ou inconnu. */
+/* Durée de conservation d'un ingrédient, en jours. null = non périssable ou inconnu.
+   Les valeurs par défaut (SHELF_LIFE) sont modifiables par l'utilisateur, réglage par réglage,
+   dans Réglages → Modifier les durées de péremption. La liste des mots-clés (SHELF_MAP, donc
+   l'ordre de correspondance) ne change pas : seule la durée associée peut être personnalisée. */
 function shelfLifeDays(name){
   const n=normIng(name);
   if(!n)return null;
   // On teste aussi une forme dépluralisée : « pommes de terre » doit correspondre à
   // « pomme de terre » (30 j) et non à « pomme » (14 j), qui en est un sous-ensemble.
   const sing=n.replace(/s\b/g,'').replace(/\s+/g,' ').trim();
-  for(const [k,d] of SHELF_MAP){ if(n.includes(k)||sing.includes(k))return d; }
+  const ov=settings.shelfOverrides||{};
+  for(const [k,d] of SHELF_MAP){
+    if(n.includes(k)||sing.includes(k))return ov.hasOwnProperty(k)?ov[k]:d;
+  }
   return null;
 }
 
@@ -712,7 +735,7 @@ function filterActive(){return !!(rFilter.q||rFilter.excl||rFilter.src||rFilter.
 function resetFilter(){rFilter={q:'',excl:'',tags:new Set(),src:''};}
 
 /* ---------- État ---------- */
-let recipes=[],meals=[],shopping=[],stock=[],settings={id:'app',proxy:'',household:null};
+let recipes=[],meals=[],shopping=[],stock=[],settings={id:'app',proxy:'',household:null,shelfOverrides:{}};
 const alive=a=>a.filter(r=>!r.deleted);
 async function loadAll(){
   recipes=alive(await dbGetAll('recipes'));
@@ -2219,6 +2242,83 @@ function field(label,value,type){
   wrap.appendChild(input);return{wrap,input};
 }
 
+/* ---------- Durées de péremption (personnalisables) ---------- */
+function openShelfLifeSettings(){
+  const pending=Object.assign({},settings.shelfOverrides||{});
+  openSheet('Durées de péremption',c=>{
+    const intro=el('div','hint');
+    intro.innerHTML='Nombre de jours avant péremption à partir de l’achat, utilisé pour calculer les échéances des repas. Laisse le champ vide pour « ne périme jamais ». Réglage propre à cet appareil.';
+    intro.style.marginBottom='12px';c.appendChild(intro);
+
+    const se=el('div','fsearch');se.style.marginBottom='10px';
+    se.innerHTML='<svg class="mag" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+    const sInp=el('input');sInp.type='search';sInp.placeholder='Rechercher un ingrédient…';sInp.autocomplete='off';
+    se.appendChild(sInp);c.appendChild(se);
+
+    const resetAll=el('button','btn btn-ghost btn-block','Réinitialiser toutes les valeurs par défaut');
+    resetAll.style.marginBottom='10px';
+    resetAll.onclick=()=>{Object.keys(pending).forEach(k=>delete pending[k]);draw();};
+    c.appendChild(resetAll);
+
+    const count=el('div','hint');count.style.margin='0 2px 8px';c.appendChild(count);
+    const list=el('div');c.appendChild(list);
+
+    function rowFor(k,def){
+      const row=el('div','planline');
+      const left=el('div');left.style.cssText='display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden';
+      const nameEl=el('span',null,k.charAt(0).toUpperCase()+k.slice(1));
+      nameEl.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      const tag=el('span','pill','modifié');tag.style.display='none';tag.style.flex='none';
+      left.appendChild(nameEl);left.appendChild(tag);
+
+      const right=el('div');right.style.cssText='display:flex;align-items:center;gap:6px;flex:none';
+      const inp=el('input');inp.type='text';inp.inputMode='numeric';inp.placeholder='jamais';
+      inp.style.cssText='width:56px;text-align:center;border:1.5px solid var(--hair);border-radius:8px;padding:6px 2px';
+      const rst=el('button',null,'↺');rst.title='Réinitialiser';
+      rst.style.cssText='width:30px;height:30px;border-radius:8px;color:var(--muted);flex:none';
+      right.appendChild(inp);right.appendChild(rst);
+
+      const sync=()=>{
+        const overridden=pending.hasOwnProperty(k);
+        const eff=overridden?pending[k]:def;
+        inp.value=eff==null?'':String(eff);
+        tag.style.display=overridden?'':'none';
+      };
+      inp.oninput=()=>{
+        const v=inp.value.trim();
+        if(v==='')pending[k]=null;
+        else{const n=parseInt(v);if(!isNaN(n))pending[k]=Math.max(0,Math.min(365,n));}
+        tag.style.display=pending.hasOwnProperty(k)?'':'none';
+      };
+      rst.onclick=()=>{delete pending[k];sync();};
+      sync();
+      row.appendChild(left);row.appendChild(right);
+      return row;
+    }
+
+    function draw(){
+      list.innerHTML='';
+      const q=normIng(sInp.value);
+      const items=SHELF_LIFE.filter(([k])=>!q||normIng(k).includes(q));
+      count.textContent=items.length+' ingrédient'+(items.length>1?'s':'');
+      items.forEach(([k,def])=>list.appendChild(rowFor(k,def)));
+      if(!items.length)list.appendChild(el('div','hint','Aucun ingrédient ne correspond.'));
+    }
+    sInp.oninput=draw;
+    draw();
+
+    const save=el('button','btn btn-primary btn-block','Enregistrer');
+    save.style.marginTop='14px';
+    save.onclick=async()=>{
+      settings.shelfOverrides=pending;settings.id='app';
+      await dbPut('settings',settings);
+      closeSheet();renderRepas();updateBadges();
+      toast('Durées de péremption enregistrées');
+    };
+    c.appendChild(save);
+  });
+}
+
 /* ---------- Réglages ---------- */
 function openSettings(){
   openSheet('Réglages',c=>{
@@ -2238,6 +2338,13 @@ function openSettings(){
       toast('Réglages enregistrés');
     };
     c.appendChild(hSave);
+
+    const nOv=Object.keys(settings.shelfOverrides||{}).length;
+    c.appendChild(sectionEyebrow('Péremption',nOv?nOv+' modifiée'+(nOv>1?'s':''):'valeurs par défaut'));
+    const shelfBtn=el('button','btn btn-ghost btn-block','Modifier les durées de péremption');
+    shelfBtn.style.marginBottom='8px';
+    shelfBtn.onclick=()=>openShelfLifeSettings();
+    c.appendChild(shelfBtn);
 
     // Le relais est pré-configuré et fonctionne sans intervention : ces réglages ne concernent
     // que le déploiement d'un Worker perso, donc masqués derrière un repli technique.
@@ -2396,7 +2503,7 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
    suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
    lui-même a changé : on propose alors un rechargement en un geste. */
-const APP_VERSION='1.8.3';
+const APP_VERSION='1.8.4';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
