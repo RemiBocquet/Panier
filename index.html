@@ -2591,7 +2591,7 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
    suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
    lui-même a changé : on propose alors un rechargement en un geste. */
-const APP_VERSION='1.8.4';
+const APP_VERSION='1.8.5';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
