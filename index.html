@@ -25,7 +25,7 @@
   --ff-display:Georgia,"Iowan Old Style","Times New Roman",serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%}
+html,body{margin:0;height:100%;background:var(--paper)}
 body{font-family:var(--ff-ui);color:var(--ink);background:var(--paper);line-height:1.45;overscroll-behavior-y:none;-webkit-font-smoothing:antialiased}
 button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:none}
 input,textarea,select{font-family:inherit;font-size:16px}
@@ -327,7 +327,7 @@ function aggKey(name,u){const n=stripAccents((name||'').toLowerCase()).replace(/
 function fmtQty(baseQty,cls,unit){if(baseQty==null)return'';const r=v=>{const x=Math.round(v*100)/100;return (Number.isInteger(x)?x:x.toFixed(2).replace(/0+$/,'').replace(/\.$/,'')).toString().replace('.',',');};if(cls==='mass')return baseQty>=1000?r(baseQty/1000)+' kg':r(baseQty)+' g';if(cls==='vol')return baseQty>=1000?r(baseQty/1000)+' l':r(baseQty)+' ml';return r(baseQty)+(unit?(' '+unit):'');}
 
 /* ---------- Rayons ---------- */
-const RAYONS=[['fruits','🥕','Fruits & légumes',['tomate','oignon','ail','echalote','carotte','courgette','poivron','aubergine','salade','laitue','epinard','pomme de terre','patate','pomme','poire','banane','citron','orange','fraise','champignon','brocoli','chou','haricot','petit pois','mais','concombre','radis','betterave','poireau','celeri','navet','potiron','courge','avocat','ananas','mangue','raisin','peche','abricot','cerise','framboise','myrtille','persil','basilic','coriandre','menthe','ciboulette','thym','romarin','laurier','gingembre','herbe','fenouil','endive','artichaut','asperge','clementine','pamplemousse','melon','pasteque']],['viande','🥩','Viandes & poissons',['poulet','boeuf','bœuf','porc','veau','agneau','dinde','canard','jambon','lardon','bacon','saucisse','merguez','steak','escalope','cuisse','filet','saumon','thon','cabillaud','colin','truite','crevette','moule','poisson','viande','chorizo','magret','gigot','boudin','andouille','haché','sardine','maquereau','dorade','calamar','noix de saint','rôti']],['cremerie','🧀','Crémerie & œufs',['lait','beurre','creme','fromage','yaourt','oeuf','œuf','parmesan','mozzarella','gruyere','emmental','comte','chevre','feta','ricotta','mascarpone','cheddar','camembert','brie','fromage blanc','margarine','faisselle']],['boulangerie','🥖','Boulangerie',['pain','baguette','brioche','pain de mie','tortilla','wrap','pate feuilletee','pate brisee','pate sablee','pate a pizza','pâte','biscotte','croissant']],['epicerie','🥫','Épicerie salée',['farine','riz','pate','pates','semoule','quinoa','lentille','pois chiche','huile','vinaigre','sel','poivre','moutarde','ketchup','mayonnaise','sauce soja','bouillon','concentre','concasse','tomates pelees','conserve','epice','curry','curcuma','paprika','cumin','muscade','olive','cornichon','chapelure','levure chimique','maizena','fecule','coulis','coco','boulgour','couscous','gnocchi']],['sucree','🍫','Épicerie sucrée',['sucre','chocolat','miel','confiture','cacao','vanille','levure','pepite','biscuit','cereale','compote','sirop','pralin','amande','noisette','noix','sucre glace','speculoos','pate a tartiner','gateau']],['boissons','🧃','Boissons',['eau','vin','biere','bière','jus','soda','cidre','lait de coco','cafe','café','the','thé','limonade','champagne']],['surgeles','❄️','Surgelés',['surgele','surgelé','glace','congele','congelé','glacon']],['entretien','🧽','Entretien & maison',['liquide vaisselle','lessive','eponge','éponge','sopalin','papier toilette','sac poubelle','essuie-tout','film alimentaire','aluminium','cure-dent']]];
+const RAYONS=[['fruits','🥕','Fruits & légumes',['tomate','oignon','ail','echalote','carotte','courgette','poivron','aubergine','salade','laitue','epinard','pomme de terre','patate','pomme','poire','banane','citron','orange','fraise','champignon','brocoli','chou','haricot','petit pois','mais','concombre','radis','betterave','poireau','celeri','navet','potiron','courge','avocat','ananas','mangue','raisin','peche','abricot','cerise','framboise','myrtille','persil','basilic','coriandre','menthe','ciboulette','thym','romarin','laurier','gingembre','herbe','fenouil','endive','artichaut','asperge','clementine','pamplemousse','melon','pasteque']],['viande','🥩','Viandes & poissons',['poulet','boeuf','bœuf','porc','veau','agneau','dinde','canard','jambon','lardon','bacon','saucisse','merguez','steak','escalope','cuisse','filet','saumon','thon','cabillaud','colin','truite','crevette','moule','poisson','viande','chorizo','magret','gigot','boudin','andouille','haché','sardine','maquereau','dorade','calamar','noix de saint','rôti']],['cremerie','🧀','Crémerie & œufs',['lait','beurre','creme','fromage','yaourt','oeuf','œuf','parmesan','mozzarella','gruyere','emmental','comte','chevre','feta','ricotta','mascarpone','cheddar','camembert','brie','fromage blanc','margarine','faisselle']],['boulangerie','🥖','Boulangerie',['pain','baguette','brioche','pain de mie','tortilla','wrap','pate feuilletee','pate brisee','pate sablee','pate a pizza','biscotte','croissant']],['epicerie','🥫','Épicerie salée',['farine','riz','pate','pates','semoule','quinoa','lentille','pois chiche','huile','vinaigre','sel','poivre','moutarde','ketchup','mayonnaise','sauce soja','bouillon','concentre','concasse','tomates pelees','conserve','epice','curry','curcuma','paprika','cumin','muscade','olive','cornichon','chapelure','levure chimique','maizena','fecule','coulis','coco','boulgour','couscous','gnocchi']],['sucree','🍫','Épicerie sucrée',['sucre','chocolat','miel','confiture','cacao','vanille','levure','pepite','biscuit','cereale','compote','sirop','pralin','amande','noisette','noix','sucre glace','speculoos','pate a tartiner','gateau']],['boissons','🧃','Boissons',['eau','vin','biere','bière','jus','soda','cidre','lait de coco','cafe','café','the','thé','limonade','champagne']],['surgeles','❄️','Surgelés',['surgele','surgelé','glace','congele','congelé','glacon']],['entretien','🧽','Entretien & maison',['liquide vaisselle','lessive','eponge','éponge','sopalin','papier toilette','sac poubelle','essuie-tout','film alimentaire','aluminium','cure-dent']]];
 function categorize(name){const n=stripAccents((name||'').toLowerCase());for(const[id,ic,label,keys]of RAYONS){for(const k of keys){if(n.includes(stripAccents(k)))return id;}}return'autres';}
 function rayonMeta(id){const r=RAYONS.find(x=>x[0]===id);return r?{id,icon:r[1],label:r[2]}:{id:'autres',icon:'🧺',label:'Autres'};}
 const rayonOrder=id=>{const i=RAYONS.findIndex(x=>x[0]===id);return i<0?RAYONS.length:i;};
@@ -2147,6 +2147,74 @@ function openImportPhoto(){
   });
 }
 
+/* ---------- Recherche d'images libres de droits (Openverse) ----------
+   Openverse agrège des images sous licence Creative Commons / domaine public (Flickr,
+   Wikimedia, musées...). Pas de clé API à gérer : recherche publique, directement depuis
+   le navigateur. Certaines licences (CC-BY) demandent de créditer l'auteur en cas de
+   republication — on l'affiche sur chaque vignette, sans le stocker (l'app ne garde que
+   l'URL de l'image, comme pour une image importée depuis une recette web). */
+async function openverseSearch(query){
+  const qs='?q='+encodeURIComponent(query)+'&page_size=24&mature=false';
+  const r=await fetch('https://api.openverse.org/v1/images/'+qs,{headers:{'Accept':'application/json'}});
+  if(!r.ok)throw new Error('Openverse indisponible ('+r.status+').');
+  const d=await r.json();
+  return (d.results||[]).filter(x=>x&&x.url).map(x=>({
+    url:x.url,
+    thumb:x.thumbnail||x.url,
+    creator:x.creator||''
+  }));
+}
+function openImagePicker(initialQuery,onPick){
+  openSheet('Choisir une image',c=>{
+    const se=el('div','fsearch');se.style.marginBottom='10px';
+    se.innerHTML='<svg class="mag" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+    const inp=el('input');inp.type='search';inp.placeholder='ex. poulet basquaise';inp.autocomplete='off';
+    inp.value=initialQuery||'';
+    se.appendChild(inp);c.appendChild(se);
+
+    const hint=el('div','hint');
+    hint.innerHTML='Images sous licence libre (Creative Commons / domaine public), via <b>Openverse</b>. Certaines demandent de créditer l’auteur affiché sous la vignette si tu republies la recette ailleurs.';
+    hint.style.marginBottom='10px';c.appendChild(hint);
+
+    const status=el('div','hint');status.style.margin='0 2px 8px';c.appendChild(status);
+    const grid=el('div');grid.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:8px';
+    c.appendChild(grid);
+
+    let seq=0;
+    async function run(q){
+      const my=++seq;
+      grid.innerHTML='';
+      if(!q.trim()){status.textContent='';return;}
+      status.textContent='Recherche…';
+      try{
+        const results=await openverseSearch(q.trim());
+        if(my!==seq)return;
+        status.textContent=results.length?'':'Aucun résultat — essaie un autre mot-clé.';
+        results.forEach(r=>{
+          const cell=el('button');
+          cell.style.cssText='padding:0;border:none;border-radius:10px;overflow:hidden;aspect-ratio:1;background:#eee;cursor:pointer;position:relative';
+          const img=el('img');img.src=r.thumb;img.loading='lazy';img.alt='';
+          img.style.cssText='width:100%;height:100%;object-fit:cover;display:block';
+          cell.appendChild(img);
+          if(r.creator){
+            const cr=el('div',null,r.creator);
+            cr.style.cssText='position:absolute;left:0;right:0;bottom:0;font-size:9.5px;color:#fff;background:rgba(0,0,0,.55);padding:2px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+            cell.appendChild(cr);
+          }
+          cell.onclick=()=>{onPick(r.url);closeSheet();};
+          grid.appendChild(cell);
+        });
+      }catch(e){
+        if(my!==seq)return;
+        status.textContent='❌ '+e.message;
+      }
+    }
+    let deb;
+    inp.oninput=()=>{clearTimeout(deb);deb=setTimeout(()=>run(inp.value),400);};
+    if(inp.value)run(inp.value);
+  });
+}
+
 /* ---------- Formulaire recette ---------- */
 function openRecipeForm(recipe){
   const isNew=!recipe.id;
@@ -2173,6 +2241,26 @@ function openRecipeForm(recipe){
     const servF=field('Personnes',data.servings,'number');servF.wrap.style.flex='0 0 110px';servF.input.inputMode='numeric';servF.input.placeholder='ex. 4';
     const imgF=field('Image (URL)',data.image,'url');imgF.wrap.style.flex='1';imgF.input.placeholder='optionnel';
     rowSP.appendChild(servF.wrap);rowSP.appendChild(imgF.wrap);c.appendChild(rowSP);
+
+    const imgPrev=el('img');
+    imgPrev.style.cssText='display:none;width:100%;height:130px;object-fit:cover;border-radius:12px;margin:-6px 0 10px;box-shadow:var(--shadow)';
+    const syncImgPrev=()=>{
+      const v=imgF.input.value.trim();
+      if(v){imgPrev.src=v;imgPrev.style.display='block';}else{imgPrev.style.display='none';}
+    };
+    imgPrev.onerror=()=>{imgPrev.style.display='none';};
+    imgF.input.oninput=syncImgPrev;
+    syncImgPrev();
+    c.appendChild(imgPrev);
+
+    const findImg=el('button','btn btn-ghost btn-block');findImg.style.marginBottom='14px';
+    findImg.innerHTML='<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg> Chercher une image libre de droits';
+    findImg.onclick=()=>{
+      openImagePicker(nameF.input.value||data.name,url=>{
+        imgF.input.value=url;syncImgPrev();
+      });
+    };
+    c.appendChild(findImg);
 
     const ebIng=sectionEyebrow('Ingrédients',data.ingredients.length);c.appendChild(ebIng);
     const ingWrap=el('div');c.appendChild(ingWrap);
