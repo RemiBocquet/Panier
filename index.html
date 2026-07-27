@@ -2147,22 +2147,36 @@ function openImportPhoto(){
   });
 }
 
-/* ---------- Recherche d'images libres de droits (Openverse) ----------
-   Openverse agrège des images sous licence Creative Commons / domaine public (Flickr,
-   Wikimedia, musées...). Pas de clé API à gérer : recherche publique, directement depuis
-   le navigateur. Certaines licences (CC-BY) demandent de créditer l'auteur en cas de
-   republication — on l'affiche sur chaque vignette, sans le stocker (l'app ne garde que
-   l'URL de l'image, comme pour une image importée depuis une recette web). */
-async function openverseSearch(query){
-  const qs='?q='+encodeURIComponent(query)+'&page_size=24&mature=false';
-  const r=await fetch('https://api.openverse.org/v1/images/'+qs,{headers:{'Accept':'application/json'}});
-  if(!r.ok)throw new Error('Openverse indisponible ('+r.status+').');
+/* ---------- Recherche d'images libres de droits (Wikimedia Commons) ----------
+   Wikimedia Commons héberge des images sous licence Creative Commons ou domaine public.
+   Recherche anonyme, sans clé API, directement depuis le navigateur (CORS ouvert via
+   ?origin=*). Openverse a été essayé en premier mais exige désormais une authentification
+   OAuth2 pour chaque recherche — inutilisable sans clé, qu'on ne veut pas exposer côté
+   client. Certaines licences (CC-BY) demandent de créditer l'auteur en cas de
+   republication — nom et licence sont affichés sur chaque vignette, sans être stockés
+   (l'app ne garde que l'URL de l'image, comme pour une image importée depuis une recette web). */
+const COMMONS_IMG_EXT=/\.(jpe?g|png|gif|webp)$/i;
+function stripHtml(h){return String(h||'').replace(/<[^>]+>/g,'').trim();}
+async function commonsImageSearch(query){
+  const qs='?action=query&generator=search&gsrnamespace=6&gsrsearch='+encodeURIComponent(query)
+    +'&gsrlimit=30&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=320&format=json&origin=*';
+  const r=await fetch('https://commons.wikimedia.org/w/api.php'+qs,{headers:{'Accept':'application/json'}});
+  if(!r.ok)throw new Error('Wikimedia Commons indisponible ('+r.status+').');
   const d=await r.json();
-  return (d.results||[]).filter(x=>x&&x.url).map(x=>({
-    url:x.url,
-    thumb:x.thumbnail||x.url,
-    creator:x.creator||''
-  }));
+  const pages=Object.values((d.query&&d.query.pages)||{});
+  const out=[];
+  for(const p of pages){
+    const info=(p.imageinfo||[])[0];
+    if(!info||!info.url||!COMMONS_IMG_EXT.test(info.url))continue;
+    const meta=info.extmetadata||{};
+    out.push({
+      url:info.url,
+      thumb:info.thumburl||info.url,
+      creator:stripHtml(meta.Artist&&meta.Artist.value),
+      license:(meta.LicenseShortName&&meta.LicenseShortName.value)||''
+    });
+  }
+  return out;
 }
 function openImagePicker(initialQuery,onPick){
   openSheet('Choisir une image',c=>{
@@ -2173,7 +2187,7 @@ function openImagePicker(initialQuery,onPick){
     se.appendChild(inp);c.appendChild(se);
 
     const hint=el('div','hint');
-    hint.innerHTML='Images sous licence libre (Creative Commons / domaine public), via <b>Openverse</b>. Certaines demandent de créditer l’auteur affiché sous la vignette si tu republies la recette ailleurs.';
+    hint.innerHTML='Images sous licence libre (Creative Commons / domaine public), via <b>Wikimedia Commons</b>. Certaines demandent de créditer l’auteur affiché sous la vignette si tu republies la recette ailleurs.';
     hint.style.marginBottom='10px';c.appendChild(hint);
 
     const status=el('div','hint');status.style.margin='0 2px 8px';c.appendChild(status);
@@ -2187,7 +2201,7 @@ function openImagePicker(initialQuery,onPick){
       if(!q.trim()){status.textContent='';return;}
       status.textContent='Recherche…';
       try{
-        const results=await openverseSearch(q.trim());
+        const results=await commonsImageSearch(q.trim());
         if(my!==seq)return;
         status.textContent=results.length?'':'Aucun résultat — essaie un autre mot-clé.';
         results.forEach(r=>{
@@ -2196,8 +2210,9 @@ function openImagePicker(initialQuery,onPick){
           const img=el('img');img.src=r.thumb;img.loading='lazy';img.alt='';
           img.style.cssText='width:100%;height:100%;object-fit:cover;display:block';
           cell.appendChild(img);
-          if(r.creator){
-            const cr=el('div',null,r.creator);
+          const credit=[r.creator,r.license].filter(Boolean).join(' · ');
+          if(credit){
+            const cr=el('div',null,credit);
             cr.style.cssText='position:absolute;left:0;right:0;bottom:0;font-size:9.5px;color:#fff;background:rgba(0,0,0,.55);padding:2px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
             cell.appendChild(cr);
           }
@@ -2591,7 +2606,7 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
    suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
    lui-même a changé : on propose alors un rechargement en un geste. */
-const APP_VERSION='1.8.5';
+const APP_VERSION='1.9.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){

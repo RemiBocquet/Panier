@@ -35,9 +35,10 @@ au stock et pousse le manque réel dans les courses (voir [Stock et validation d
 ### Image d'une recette
 
 Le bouton **Chercher une image libre de droits** (formulaire de recette) interroge
-[Openverse](https://openverse.org), qui agrège des photos sous licence Creative Commons ou domaine
-public (Flickr, Wikimedia, musées...). Aucune clé API à configurer. Certaines licences (CC-BY)
-demandent de créditer l'auteur — affiché sous chaque vignette — si la recette est republiée ailleurs.
+[Wikimedia Commons](https://commons.wikimedia.org), qui héberge des photos sous licence Creative
+Commons ou domaine public. Aucune clé API à configurer, recherche anonyme depuis le navigateur.
+Certaines licences (CC-BY) demandent de créditer l'auteur — nom et licence affichés sous chaque
+vignette — si la recette est republiée ailleurs.
 Seule l'URL de l'image choisie est conservée, comme pour une image importée depuis une recette web.
 
 ## Fonctionnement des quantités
