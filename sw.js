@@ -2,13 +2,14 @@
 //
 // Stratégie de mise à jour :
 //  - la coquille (HTML/manifest) est servie en RÉSEAU D'ABORD, cache en secours.
-//  - les images et assets OCR sont servis en CACHE D'ABORD (ils ne changent jamais).
+//  - les images et bibliothèques chargées à la demande (OCR, QR) sont servies en CACHE
+//    D'ABORD (elles ne changent jamais, à version figée).
 //  - hors-ligne, tout retombe sur le cache : l'app reste utilisable.
 
-const VERSION = 'panier-v1.10.1';
+const VERSION = 'panier-v1.10.2';
 const SHELL_CACHE = 'panier-shell-' + VERSION;
 const STATIC_CACHE = 'panier-static-v1';
-const OCR_CACHE = 'panier-ocr-v1';
+const CDN_CACHE = 'panier-cdn-v1';
 
 // Servis en réseau d'abord : c'est là que vit ton code.
 const SHELL = ['./', './index.html', './manifest.webmanifest'];
@@ -19,7 +20,8 @@ const STATIC = [
   './apple-touch-icon.png', './favicon-64.png'
 ];
 
-const OCR_HOSTS = ['cdn.jsdelivr.net', 'unpkg.com', 'tessdata.projectnaptha.com'];
+// Tesseract (OCR) et le générateur de QR sont chargés à la demande depuis ces hôtes.
+const CDN_HOSTS = ['cdn.jsdelivr.net', 'unpkg.com', 'tessdata.projectnaptha.com'];
 const NET_TIMEOUT = 4000;
 
 self.addEventListener('install', (event) => {
@@ -90,9 +92,10 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  // Assets OCR (Tesseract) : cache durable, pour que l'OCR marche hors-ligne.
-  if (OCR_HOSTS.includes(url.hostname)) {
-    event.respondWith(cacheFirst(req, OCR_CACHE).catch(() => fetch(req)));
+  // Bibliothèques chargées à la demande (OCR, QR) : cache durable, pour qu'elles
+  // fonctionnent hors-ligne après un premier chargement.
+  if (CDN_HOSTS.includes(url.hostname)) {
+    event.respondWith(cacheFirst(req, CDN_CACHE).catch(() => fetch(req)));
     return;
   }
 

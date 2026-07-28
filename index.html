@@ -2450,6 +2450,64 @@ function openShelfLifeSettings(){
   });
 }
 
+/* ---------- Partage du code de synchro par QR code ----------
+   Le QR encode une URL de l'app avec le code (et l'URL du relais si personnalisée) en
+   paramètres : l'appareil photo natif de l'autre téléphone propose de l'ouvrir, et l'app
+   applique le code toute seule au démarrage (voir boot()). Le QR est généré et affiché
+   entièrement en local — comme le reste de la synchro, le code ne transite par aucun
+   serveur tiers. Bibliothèque chargée à la demande (même schéma que l'OCR), mise en cache
+   par le service worker pour fonctionner hors-ligne après le premier usage. */
+const QR_SRC='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+let _qrLoading=null;
+function loadQr(){
+  if(window.qrcode)return Promise.resolve(window.qrcode);
+  if(_qrLoading)return _qrLoading;
+  _qrLoading=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src=QR_SRC;
+    s.onload=()=>window.qrcode?res(window.qrcode):rej(new Error('Générateur de QR non chargé'));
+    s.onerror=()=>rej(new Error('Impossible de charger le générateur de QR (connexion requise au 1er usage).'));
+    document.head.appendChild(s);
+  });
+  return _qrLoading;
+}
+function syncShareUrl(secret){
+  const u=new URL(location.href);
+  u.search='';u.hash='';
+  u.searchParams.set('syncSecret',secret);
+  const custom=(settings.syncUrl||'').trim();
+  if(custom&&custom!==relayBase())u.searchParams.set('syncUrl',custom);
+  return u.toString();
+}
+function openSyncQr(secret){
+  if(!secret){toast('Renseigne ou génère un code d’abord');return;}
+  openSheet('Code de synchro — QR',c=>{
+    const wrap=el('div');wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:14px;padding:6px 0 4px';
+    const box=el('div');box.style.cssText='background:#fff;padding:14px;border-radius:16px;box-shadow:var(--shadow);min-height:220px;min-width:220px;display:grid;place-items:center';
+    const status=el('div','hint');status.style.textAlign='center';
+    wrap.appendChild(box);wrap.appendChild(status);c.appendChild(wrap);
+    status.textContent='Génération du QR…';
+    loadQr().then(qrcode=>{
+      const url=syncShareUrl(secret);
+      const qr=qrcode(0,'M');
+      qr.addData(url);qr.make();
+      const n=qr.getModuleCount(),cell=6,size=n*cell;
+      const cv=el('canvas');cv.width=size;cv.height=size;
+      const ctx=cv.getContext('2d');
+      ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);
+      ctx.fillStyle='#000';
+      for(let r=0;r<n;r++)for(let cIdx=0;cIdx<n;cIdx++){
+        if(qr.isDark(r,cIdx))ctx.fillRect(cIdx*cell,r*cell,cell,cell);
+      }
+      cv.style.cssText='display:block;width:220px;height:220px;image-rendering:pixelated';
+      box.innerHTML='';box.appendChild(cv);
+      status.innerHTML='Scanne ce code avec l’appareil photo de <b>l’autre téléphone</b> : il proposera d’ouvrir Panier, et la synchro se configure toute seule.';
+    }).catch(e=>{
+      status.textContent='❌ '+e.message;
+    });
+  });
+}
+
 /* ---------- Réglages ---------- */
 function openSettings(){
   openSheet('Réglages',c=>{
@@ -2531,8 +2589,12 @@ function openSettings(){
       toast('Code généré — recopie-le sur l’autre téléphone');
     };
     sk.appendChild(gen);
+    const qrBtn=el('button','btn btn-ghost btn-block','📷 Partager par QR code');
+    qrBtn.style.marginTop='8px';
+    qrBtn.onclick=()=>openSyncQr(skI.value.trim());
+    sk.appendChild(qrBtn);
     const skh=el('div','hint');
-    skh.innerHTML='Ce code chiffre tes données <b>avant</b> l’envoi : le serveur ne peut pas les lire, et personne ne peut y accéder sans lui. Saisis exactement le même sur ton second téléphone. Si tu le perds, les données déjà envoyées deviennent illisibles.';
+    skh.innerHTML='Ce code chiffre tes données <b>avant</b> l’envoi : le serveur ne peut pas les lire, et personne ne peut y accéder sans lui. Saisis exactement le même sur ton second téléphone (ou scanne le QR code depuis l’appareil photo). Si tu le perds, les données déjà envoyées deviennent illisibles.';
     sk.appendChild(skh);c.appendChild(sk);
 
     const sSave=el('button','btn btn-primary btn-block','Enregistrer et synchroniser');
@@ -2773,7 +2835,7 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
    suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
    lui-même a changé : on propose alors un rechargement en un geste. */
-const APP_VERSION='1.10.1';
+const APP_VERSION='1.10.2';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -2835,6 +2897,22 @@ function initServiceWorker(){
   });
 }
 
+/* Réception d'un code de synchro scanné en QR (voir openSyncQr). L'URL n'est qu'un porteur :
+   on applique le code puis on la nettoie immédiatement, pour ne pas le laisser traîner dans
+   l'historique du navigateur. */
+async function applySyncCodeFromUrl(q){
+  const secret=q.get('syncSecret');
+  const url=q.get('syncUrl');
+  settings.syncSecret=secret;
+  if(url)settings.syncUrl=url;
+  settings.syncCursor=0;settings.syncPushedAt=0;_sync.key=null;
+  settings.id='app';
+  await dbPut('settings',settings);
+  history.replaceState(null,'',location.pathname);
+  toast('Code de synchro reçu — synchronisation…');
+  syncRun(true);
+}
+
 async function boot(){
   await openDB();await loadAll();renderAll();
   const q=new URLSearchParams(location.search);
@@ -2844,6 +2922,7 @@ async function boot(){
   const m=shared.match(/https?:\/\/\S+/);
   if(m){setTab('recettes');openImportLink(m[0]);}
   else if(q.get('action')==='import'){setTab('recettes');openImport();}
+  else if(q.get('syncSecret')){await applySyncCodeFromUrl(q);}
   else if(!settings.tutorialSeen){openTutorial();}
   initServiceWorker();
   purgeTombstones().catch(()=>{});

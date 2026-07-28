@@ -124,8 +124,13 @@ unités sont compatibles.
 
 ## Synchroniser deux téléphones (optionnel)
 
-Désactivé par défaut. Une fois activé, les recettes, repas et courses sont partagés entre tes
-appareils — et uniquement les tiens.
+Désactivé par défaut. Une fois activé, les recettes, repas, stock et courses sont partagés entre
+tes appareils — et uniquement les tiens.
+
+Réglages → Synchro → **Générer un code sûr**, puis **Partager par QR code** : scanné avec
+l'appareil photo natif de l'autre téléphone, il propose d'ouvrir Panier et configure la synchro
+tout seul, sans ressaisir le code à la main. Le QR encode juste une URL de l'app (le code n'est
+jamais envoyé à un serveur), et l'app l'efface de la barre d'adresse dès qu'elle l'a lu.
 
 ## Priorité et péremption
 
