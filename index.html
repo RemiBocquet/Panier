@@ -1430,7 +1430,7 @@ function mealCard(m,dl){
   let done=null;
   if(mealStatus(m)==='validated'){
     done=el('button','del');done.title='Marquer comme fait';
-    done.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5L19 7"/></svg>';
+    done.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="17" r="5"/><path d="M9 3c0 1.5 1.5 1.5 1.5 3S9 7.5 9 9"/><path d="M13.5 3c0 1.5 1.5 1.5 1.5 3s-1.5 1.5-1.5 3"/></svg>';
     done.style.cssText='flex:none;color:var(--leaf);width:34px;height:34px;border-radius:9px;display:grid;place-items:center';
     done.onclick=async()=>{
       if(!confirm('Retirer ce repas maintenant qu’il est cuisiné ? Le stock déjà prélevé ne sera pas restitué.'))return;
@@ -2831,11 +2831,13 @@ $('#btn-help').onclick=openTutorial;
 $('#btn-import').onclick=()=>openImport();
 $('#btn-new').onclick=()=>openRecipeForm({});
 
-/* ---------- Nouveautés ----------
+/* Nouveautés
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
-   version courante), jamais au tout premier lancement — qui a déjà son tutoriel. Chaque
-   entrée à ajouter juste au-dessus lors d'une prochaine mise à jour de version. */
+   version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'2.0.1',date:'2026-07-28',items:[
+    'Ajustement : icône plus parlante (assiette fumante) sur le bouton « Marquer comme fait » d’un repas cuisiné.',
+  ]},
   {version:'2.0.0',date:'2026-07-28',items:[
     'Nouveau : cette fenêtre « Nouveautés », affichée après chaque mise à jour pour résumer ce qui a changé.',
     'Nouveau : recettes favorites (⭐), filtrables comme les autres tags.',
@@ -2872,7 +2874,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='2.0.0';
+const APP_VERSION='2.0.1';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
