@@ -98,9 +98,6 @@ function json(obj, status = 200) {
 const MAX_ITEMS = 500;          // par requête
 const MAX_PAYLOAD = 64 * 1024;  // par enregistrement
 
-// Doit rester synchronisé avec SYNCED_STORES dans index.html : un store côté app qui
-// n'apparaît pas ici est accepté par le client, poussé vers ce Worker... et silencieusement
-// jeté ici, sans jamais atteindre l'autre appareil. (C'est ce qui s'est produit pour "stock".)
 const SYNCED_STORES = ['recipes', 'meals', 'shopping', 'stock'];
 
 async function handleSync(request, env) {
@@ -111,7 +108,6 @@ async function handleSync(request, env) {
   const url = new URL(request.url);
   const room = (url.searchParams.get('room') || '').toLowerCase();
 
-  // Le salon est un hex de 32 caractères : on rejette tout le reste.
   if (!/^[a-f0-9]{32}$/.test(room)) {
     return json({ error: 'Paramètre room invalide.' }, 400);
   }
@@ -130,9 +126,6 @@ async function handleSync(request, env) {
       deleted: !!r.deleted,
       payload: r.payload,
     }));
-
-    // Curseur : l'horodatage du dernier élément renvoyé, sinon on garde celui du client.
-    // On n'utilise pas l'heure du serveur, afin de ne rien perdre en cas d'horloges décalées.
     const now = items.length ? items[items.length - 1].updatedAt : since;
     return json({ now, items, more: items.length === MAX_ITEMS });
   }

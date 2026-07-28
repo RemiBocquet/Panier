@@ -1,26 +1,16 @@
 // Panier — service worker
-//
-// Stratégie de mise à jour :
-//  - la coquille (HTML/manifest) est servie en RÉSEAU D'ABORD, cache en secours.
-//  - les images et bibliothèques chargées à la demande (OCR, QR) sont servies en CACHE
-//    D'ABORD (elles ne changent jamais, à version figée).
-//  - hors-ligne, tout retombe sur le cache : l'app reste utilisable.
-
-const VERSION = 'panier-v1.10.2';
+const VERSION = 'panier-v1.10.3';
 const SHELL_CACHE = 'panier-shell-' + VERSION;
 const STATIC_CACHE = 'panier-static-v1';
 const CDN_CACHE = 'panier-cdn-v1';
 
-// Servis en réseau d'abord : c'est là que vit ton code.
 const SHELL = ['./', './index.html', './manifest.webmanifest'];
-
-// Servis en cache d'abord : binaires stables.
 const STATIC = [
   './icon-192.png', './icon-512.png', './icon-maskable-512.png',
   './apple-touch-icon.png', './favicon-64.png'
 ];
 
-// Tesseract (OCR) et le générateur de QR sont chargés à la demande depuis ces hôtes.
+// Tesseract et le générateur de QR cde
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'unpkg.com', 'tessdata.projectnaptha.com'];
 const NET_TIMEOUT = 4000;
 
@@ -30,7 +20,6 @@ self.addEventListener('install', (event) => {
     await shell.addAll(SHELL).catch(() => {});
     const stat = await caches.open(STATIC_CACHE);
     await Promise.all(STATIC.map((u) => stat.add(u).catch(() => {})));
-    // On n'active pas de force : la page ouverte garde sa version jusqu'au rechargement.
   })());
 });
 
@@ -60,7 +49,7 @@ function timeout(ms) {
 async function networkFirst(req, cacheName) {
   const cache = await caches.open(cacheName);
   try {
-    // `cache: 'no-store'` évite le cache HTTP du navigateur (GitHub Pages met max-age=600).
+    // évite le cache HTTP du navigateur (GitHub Pages met max-age=600).
     const fresh = await Promise.race([
       fetch(req, { cache: 'no-store' }),
       timeout(NET_TIMEOUT)
@@ -92,14 +81,12 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  // Bibliothèques chargées à la demande (OCR, QR) : cache durable, pour qu'elles
-  // fonctionnent hors-ligne après un premier chargement.
+  // cache des biliothèques pour qu'elles fonctionnent hors-ligne après un premier chargement.
   if (CDN_HOSTS.includes(url.hostname)) {
     event.respondWith(cacheFirst(req, CDN_CACHE).catch(() => fetch(req)));
     return;
   }
 
-  // Hors origine (relais d'import, API Jow, images de recettes) : réseau direct, jamais de cache.
   if (url.origin !== self.location.origin) return;
 
   // Icônes et binaires : cache d'abord.
@@ -107,7 +94,5 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(cacheFirst(req, STATIC_CACHE).catch(() => fetch(req)));
     return;
   }
-
-  // Navigation et coquille : réseau d'abord => mise à jour automatique.
   event.respondWith(networkFirst(req, SHELL_CACHE));
 });

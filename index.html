@@ -111,7 +111,7 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .sheet .close:active{background:#eee6d8}
 .sheet .close svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round}
 .sheet .content{overflow-y:auto;padding:2px 16px 18px;-webkit-overflow-scrolling:touch}
-/* --- tutoriel interactif : montre les vrais boutons, à taper dans le vrai écran --- */
+/* tutoriel interactif : montre les vrais boutons, à taper dans le vrai écran */
 #tour{position:fixed;inset:0;z-index:80;display:none;pointer-events:none}
 #tour.show{display:block}
 #tour-bg{position:fixed;inset:0;background:var(--paper);display:none;pointer-events:auto}
@@ -173,7 +173,7 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .opt .tx{flex:1}
 .opt .tx b{display:block;font-size:15px}
 .opt .tx span{font-size:12.5px;color:var(--muted)}
-/* --- stock --- */
+/* stock */
 .stq{flex:none;font-variant-numeric:tabular-nums;font-weight:700;color:var(--pine);font-size:14px;background:#eef3ef;padding:3px 9px;border-radius:8px}
 .stq.unk{background:#f2ede2;color:var(--muted);font-weight:600}
 .planbox{background:var(--card);border-radius:var(--r-sm);box-shadow:var(--shadow);padding:14px;margin-bottom:14px}
@@ -186,7 +186,7 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .planline.cov .q{color:var(--leaf)}
 .mcard.planned{opacity:.94;border-left:4px solid var(--hair)}
 .pill{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:#f2ede2;color:var(--muted);margin-top:5px}
-/* --- échéances de péremption --- */
+/* échéances de péremption */
 .mcard{position:relative}
 .mcard.late{border-left:4px solid var(--tomato)}
 .mcard.soon{border-left:4px solid var(--saffron)}
@@ -200,7 +200,7 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .alertbox{display:flex;gap:11px;align-items:flex-start;padding:13px 14px;border-radius:var(--r-sm);background:#fbe6e2;color:#8f3226;margin-bottom:14px;font-size:13.5px;line-height:1.4}
 .alertbox.soon{background:#fdeede;color:#8a5714}
 .alertbox .ic{flex:none;font-size:19px;line-height:1.1}
-/* --- barre de filtres --- */
+/* barre de filtres */
 .fbar{margin-top:14px;margin-bottom:6px}
 .fsearch{position:relative;margin-bottom:9px}
 .fsearch input{width:100%;border:1.5px solid var(--hair);background:var(--card);border-radius:12px;padding:12px 40px 12px 38px;outline:none;transition:.15s}
@@ -287,12 +287,12 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 
 <script>
 "use strict";
-/* ======================================================================
+/*
    Panier — repas & courses.  Données 100% locales (IndexedDB).
    Import : lien (Marmiton JSON-LD / API Jow) ou photo (OCR Tesseract).
-   ====================================================================== */
+ */
 
-/* ---------- IndexedDB ---------- */
+/* IndexedDB */
 const DB_NAME='panierDB',DB_VER=2,STORES=['recipes','meals','shopping','settings','stock'];let _db=null;
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,DB_VER);r.onupgradeneeded=e=>{const db=e.target.result;for(const s of STORES){if(!db.objectStoreNames.contains(s))db.createObjectStore(s,{keyPath:'id'});}};r.onsuccess=e=>{_db=e.target.result;res(_db);};r.onerror=()=>rej(r.error);});}
 function tx(s,m='readonly'){return _db.transaction(s,m).objectStore(s);}
@@ -303,8 +303,8 @@ function dbDel(s,id){return new Promise((res,rej)=>{const r=tx(s,'readwrite').de
 function dbClear(s){return new Promise((res,rej)=>{const r=tx(s,'readwrite').clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
-/* --- Horodatage et suppressions douces (indispensables à la synchro) ---
-   Chaque enregistrement porte un updatedAt. Une suppression laisse une "pierre tombale"
+/* Horodatage et suppressions douces pour la synchro
+   Chaque enregistrement porte un updatedAt. Une suppression laisse une tombstone
    {id, deleted:true, updatedAt} : sans elle, l'autre téléphone re-pousserait l'objet effacé. */
 const SYNCED_STORES=['recipes','meals','shopping','stock'];
 async function save(store,obj){obj.updatedAt=Date.now();await dbPut(store,obj);syncSoon();return obj;}
@@ -318,7 +318,7 @@ async function tombstoneAll(store){
   const all=await dbGetAll(store);
   for(const r of all){ if(!r.deleted) await dbPut(store,{id:r.id,deleted:true,updatedAt:Date.now()}); }
 }
-// Purge des pierres tombales anciennes (au-delà de 90 j, tous les appareils ont convergé).
+// Purge des tombstones anciennes (au-delà de 90 j, tous les appareils ont convergé).
 async function purgeTombstones(){
   const cutoff=Date.now()-90*24*3600*1000;
   for(const st of SYNCED_STORES){
@@ -328,7 +328,7 @@ async function purgeTombstones(){
   }
 }
 
-/* ---------- Unités & parsing ---------- */
+/* Unités & parsing */
 const UNITS=[['kg','kg'],['kilogramme','kg'],['kilogrammes','kg'],['kilo','kg'],['kilos','kg'],['g','g'],['gr','g'],['gramme','g'],['grammes','g'],['mg','mg'],['l','l'],['litre','l'],['litres','l'],['dl','dl'],['cl','cl'],['ml','ml'],['millilitre','ml'],['millilitres','ml'],['càs','c. à soupe'],['cas','c. à soupe'],['cuillère à soupe','c. à soupe'],['cuillères à soupe','c. à soupe'],['cuillere à soupe','c. à soupe'],['cuilleres à soupe','c. à soupe'],['c. à soupe','c. à soupe'],['c à soupe','c. à soupe'],['cs','c. à soupe'],['càc','c. à café'],['cac','c. à café'],['cuillère à café','c. à café'],['cuillères à café','c. à café'],['cuillere à café','c. à café'],['cuilleres à café','c. à café'],['c. à café','c. à café'],['c à café','c. à café'],['cc','c. à café'],['pincée','pincée'],['pincées','pincée'],['gousse','gousse'],['gousses','gousse'],['tranche','tranche'],['tranches','tranche'],['sachet','sachet'],['sachets','sachet'],['boîte','boîte'],['boîtes','boîte'],['boite','boîte'],['boites','boîte'],['botte','botte'],['bottes','botte'],['brin','brin'],['brins','brin'],['feuille','feuille'],['feuilles','feuille'],['verre','verre'],['verres','verre'],['tasse','tasse'],['tasses','tasse'],['pot','pot'],['pots','pot'],['bouquet','bouquet'],['bouquets','bouquet'],['morceau','morceau'],['morceaux','morceau'],['boule','boule'],['boules','boule'],['cup','tasse'],['cups','tasse'],['tbsp','c. à soupe'],['tablespoon','c. à soupe'],['tablespoons','c. à soupe'],['tsp','c. à café'],['teaspoon','c. à café'],['teaspoons','c. à café'],['slice','tranche'],['slices','tranche'],['clove','gousse'],['cloves','gousse'],['pinch','pincée'],['oz','oz'],['lb','lb']];
 const UNIT_MAP=UNITS.slice().sort((a,b)=>b[0].length-a[0].length);
 const WORD_NUM={un:1,une:1,deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10,demi:0.5,demie:0.5};
@@ -354,27 +354,23 @@ function toBase(qty,u){const c=unitClass(u);if(qty==null)return null;if(c==='mas
 function aggKey(name,u){const n=stripAccents((name||'').toLowerCase()).replace(/[^a-z0-9 ]/g,'').replace(/s\b/g,'').trim();const c=unitClass(u);return n+'#'+(c==='disc'?('d:'+u):c);}
 function fmtQty(baseQty,cls,unit){if(baseQty==null)return'';const r=v=>{const x=Math.round(v*100)/100;return (Number.isInteger(x)?x:x.toFixed(2).replace(/0+$/,'').replace(/\.$/,'')).toString().replace('.',',');};if(cls==='mass')return baseQty>=1000?r(baseQty/1000)+' kg':r(baseQty)+' g';if(cls==='vol')return baseQty>=1000?r(baseQty/1000)+' l':r(baseQty)+' ml';return r(baseQty)+(unit?(' '+unit):'');}
 
-/* ---------- Rayons ---------- */
+/* Rayons */
 const RAYONS=[['fruits','🥕','Fruits & légumes',['tomate','oignon','ail','echalote','carotte','courgette','poivron','aubergine','salade','laitue','epinard','pomme de terre','patate','pomme','poire','banane','citron','orange','fraise','champignon','brocoli','chou','haricot','petit pois','mais','concombre','radis','betterave','poireau','celeri','navet','potiron','courge','avocat','ananas','mangue','raisin','peche','abricot','cerise','framboise','myrtille','persil','basilic','coriandre','menthe','ciboulette','thym','romarin','laurier','gingembre','herbe','fenouil','endive','artichaut','asperge','clementine','pamplemousse','melon','pasteque']],['viande','🥩','Viandes & poissons',['poulet','boeuf','bœuf','porc','veau','agneau','dinde','canard','jambon','lardon','bacon','saucisse','merguez','steak','escalope','cuisse','filet','saumon','thon','cabillaud','colin','truite','crevette','moule','poisson','viande','chorizo','magret','gigot','boudin','andouille','haché','sardine','maquereau','dorade','calamar','noix de saint','rôti']],['cremerie','🧀','Crémerie & œufs',['lait','beurre','creme','fromage','yaourt','oeuf','œuf','parmesan','mozzarella','gruyere','emmental','comte','chevre','feta','ricotta','mascarpone','cheddar','camembert','brie','fromage blanc','margarine','faisselle']],['boulangerie','🥖','Boulangerie',['pain','baguette','brioche','pain de mie','tortilla','wrap','pate feuilletee','pate brisee','pate sablee','pate a pizza','biscotte','croissant']],['epicerie','🥫','Épicerie salée',['farine','riz','pate','pates','semoule','quinoa','lentille','pois chiche','huile','vinaigre','sel','poivre','moutarde','ketchup','mayonnaise','sauce soja','bouillon','concentre','concasse','tomates pelees','conserve','epice','curry','curcuma','paprika','cumin','muscade','olive','cornichon','chapelure','levure chimique','maizena','fecule','coulis','coco','boulgour','couscous','gnocchi']],['sucree','🍫','Épicerie sucrée',['sucre','chocolat','miel','confiture','cacao','vanille','levure','pepite','biscuit','cereale','compote','sirop','pralin','amande','noisette','noix','sucre glace','speculoos','pate a tartiner','gateau']],['boissons','🧃','Boissons',['eau','vin','biere','bière','jus','soda','cidre','lait de coco','cafe','café','the','thé','limonade','champagne']],['surgeles','❄️','Surgelés',['surgele','surgelé','glace','congele','congelé','glacon']],['entretien','🧽','Entretien & maison',['liquide vaisselle','lessive','eponge','éponge','sopalin','papier toilette','sac poubelle','essuie-tout','film alimentaire','aluminium','cure-dent']]];
 function categorize(name){const n=stripAccents((name||'').toLowerCase());for(const[id,ic,label,keys]of RAYONS){for(const k of keys){if(n.includes(stripAccents(k)))return id;}}return'autres';}
 function rayonMeta(id){const r=RAYONS.find(x=>x[0]===id);return r?{id,icon:r[1],label:r[2]}:{id:'autres',icon:'🧺',label:'Autres'};}
 const rayonOrder=id=>{const i=RAYONS.findIndex(x=>x[0]===id);return i<0?RAYONS.length:i;};
 
-/* ======================================================================
-   Stock (placard, frigo, congélateur)
-   ----------------------------------------------------------------------
+/*
+   Stock
    Un article de stock : {id, name, key, unit, cls, base, category}
      base = quantité en unité canonique (g / ml / compte), ou null.
      base === null signifie « présent, quantité inconnue » : on considère alors que le
-     besoin est couvert. C'est le cas courant du placard (« j'ai de la semoule ») et le
-     seul résultat honnête d'une reconnaissance photo, qui ne sait pas peser.
+     besoin est couvert (« j'ai de la semoule »).
 
-   Les repas sont d'abord PLANIFIÉS, puis VALIDÉS. La validation déduit le stock et ne met
+   Les repas sont d'abord planifiés, puis validés. La validation déduit le stock et ne met
    dans la liste de courses que le manque réel.
    ====================================================================== */
 
-// Clé de rapprochement : le NOM seul, sans la classe d'unité. Le stock « farine, 500 g »
-// doit pouvoir couvrir un besoin exprimé en tasses.
 function stockKey(name){
   return stripAccents((name||'').toLowerCase()).replace(/[^a-z0-9 ]/g,'').replace(/s\b/g,'').trim();
 }
@@ -387,10 +383,10 @@ async function stockSet(name,qty,unit){
   const base=qty!=null?toBase(qty,unit):null;
   let it=stock.find(x=>x.key===k);
   if(it){
-    // Quantité inconnue + quantité inconnue = toujours inconnue.
+    // Quantité inconnue + quantité inconnue = inconnue.
     if(base==null||it.base==null){it.base=null;it.unit=unit||it.unit;it.cls=unitClass(unit||it.unit);}
     else if(it.cls===cls){it.base+=base;}
-    else {it.base=base;it.unit=unit;it.cls=cls;}   // unités incompatibles : la dernière fait foi
+    else {it.base=base;it.unit=unit;it.cls=cls;}   // unités incompatibles : on prend la dernière
   }else{
     it={id:uid(),key:k,name,unit:unit||null,cls,base,category:categorize(name)};
     stock.push(it);
@@ -402,8 +398,8 @@ async function stockRemove(id){
   stock=stock.filter(x=>x.id!==id);
   await softDelete('stock',id);
 }
-/* Retire une quantité du stock. Renvoie ce qui a effectivement été consommé,
-   afin de pouvoir le restituer si le repas est annulé. */
+/* Retire une quantité du stock. Renvoie ce qui a été consommé,
+   pour pouvoir le restituer si le repas est annulé. */
 async function stockConsume(name,base,cls){
   const it=findStock(name);
   if(!it)return null;
@@ -427,14 +423,14 @@ async function stockRestore(entries){
   }
 }
 
-/* ---------- Statut des repas ----------
+/* Statut des repas
    Les repas créés avant cette version n'ont pas de statut : ils ont déjà alimenté la liste
-   de courses, on les considère donc comme validés. */
+   de courses, on les considère comme validés. */
 const mealStatus=m=>m.status||'validated';
 const plannedMeals=()=>meals.filter(m=>mealStatus(m)==='planned');
 
 /* Calcule, pour un ensemble de repas planifiés, ce qui est couvert par le stock
-   et ce qu'il reste à acheter. Fonction pure : ne modifie rien. */
+   et ce qu'il reste à acheter. */
 function planNeeds(list){
   const needs=new Map();   // clé nom+classe -> agrégat
   for(const m of list){
@@ -516,29 +512,17 @@ async function validatePlan(list){
   return n;
 }
 
-/* ======================================================================
+/* 
    Péremption et priorité des repas
-   ----------------------------------------------------------------------
-   Le compte à rebours démarre quand l'article est COCHÉ dans la liste de courses
+   
+   Le compte à rebours démarre quand l'article est coché dans la liste de courses
    (= acheté). L'échéance d'un repas est celle de son ingrédient le plus fragile.
-
-   Les durées visent la date de péremption réelle d'un produit FERMÉ, à partir de son achat —
-   pas sa fragilité une fois entamé. C'est cohérent avec le départ du compte à rebours : au
-   moment où l'article est coché, il vient d'être acheté, donc encore scellé. Un yaourt, une
-   mozzarella ou des raviolis sous emballage tiennent ainsi des semaines, même s'ils deviennent
-   fragiles en quelques jours une fois ouverts — à surveiller une fois le produit entamé, ce que
-   l'app ne peut pas savoir. Les valeurs restent volontairement PRUDENTES : mieux vaut alerter
-   trop tôt que trop tard. Elles ne remplacent ni la date sur l'emballage, ni le bon sens.
-   ====================================================================== */
+ */
 const DAY_MS=86400000;
 
-// [mot-clé, jours] — null = non périssable. Le mot-clé le plus long l'emporte,
-// ce qui permet à « lait frais » (7 jours, cas marginal) de primer sur « lait » seul
-// (non périssable : par défaut on suppose du lait longue conservation UHT, largement majoritaire).
+// [mot-clé, jours] — null = non périssable. Le mot-clé le plus long l'emporte
 const SHELF_LIFE=[
-  // --- non périssables : priorité aux libellés longs ---
-  // « lait » sans précision = UHT par défaut, très largement majoritaire en France, et se garde
-  // des mois tant qu'il n'est pas ouvert.
+  //  non périssables : priorité aux libellés longs
   ['lait',null],
   ['lait de coco',null],['lait concentre',null],['lait en poudre',null],['creme de coco',null],
   ['tomates pelees',null],['tomate concassee',null],['tomates concassees',null],['concentre de tomate',null],
@@ -551,13 +535,11 @@ const SHELF_LIFE=[
   ['moutarde',null],['ketchup',null],['mayonnaise',null],['confiture',null],['biscuit',null],['cereale',null],
   ['levure',null],['maizena',null],['fecule',null],['chapelure',null],['olive',null],['cornichon',null],
   ['amande',null],['noisette',null],['noix',null],['raisin sec',null],['pruneau',null],['vin',null],['biere',null],
-  // Fromages à pâte dure/pressée : ils sèchent et perdent en goût, mais ne deviennent pas
-  // dangereux — pas de compte à rebours, comme pour le reste de cette liste.
+  // Fromages à pâte dure/pressée : ne deviennent pas
+  // dangereux —> pas de compte à rebours, comme pour le reste de cette liste.
   ['comte',null],['gruyere',null],['parmesan',null],['emmental',null],['cheddar',null],
 
-  // --- 3 jours : viande, volaille et poisson crus, non transformés ---
-  // Ces produits restent fragiles même sous film scellé : la DLC d'un plateau de viande ou de
-  // poisson frais au rayon libre-service est réellement de quelques jours, ouvert ou non.
+  // 3 jours : viande, volaille et poisson crus, non transformés
   ['viande hachee',3],['steak hache',3],['chair a saucisse',3],['fruits de mer',3],['coquillage',3],
   ['moule',3],['huitre',3],['palourde',3],['crevette',3],['gambas',3],['saint jacques',3],['langoustine',3],
   ['poisson',3],['saumon',3],['thon frais',3],['cabillaud',3],['colin',3],['merlu',3],['truite',3],
@@ -567,28 +549,24 @@ const SHELF_LIFE=[
   ['boeuf',3],['veau',3],['agneau',3],['porc',3],['steak',3],['entrecote',3],['bavette',3],['onglet',3],
   ['roti',3],['gigot',3],['magret',3],['escalope',3],
 
-  // --- 5 jours : légumes-feuilles et champignons en sachet/barquette ---
+  //  5 jours : légumes-feuilles et champignons en sachet/barquette
   ['champignon',5],['salade',5],['laitue',5],['roquette',5],['mache',5],['epinard',5],
   ['brocoli',5],['chou fleur',5],['asperge',5],['haricot vert',5],['courgette',5],
   ['concombre',5],['poireau',5],['celeri',5],['avocat',5],['fraise',5],['framboise',5],['myrtille',5],
   ['cerise',5],['mure',5],['fenouil',5],['petit pois',5],['mais doux',5],
-  // Burrata : coque fine, cœur crémeux cru — reste fragile même scellée, contrairement aux
-  // autres fromages ci-dessous.
   ['burrata',5],
 
-  // --- 7 jours : herbes fraîches en sachet, lait frais, fruits & légumes plus robustes ---
+  // 7 jours : herbes fraîches en sachet, lait frais, fruits & légumes plus robustes
   ['persil',7],['basilic',7],['coriandre',7],['menthe',7],['ciboulette',7],['aneth',7],['herbe fraiche',7],
   ['lait frais',7],['tomate',7],['poivron',7],['aubergine',7],['radis',7],['endive',7],['artichaut',7],['banane',7],
   ['peche',7],['abricot',7],['nectarine',7],['prune',7],['melon',7],['pasteque',7],['ananas',7],['mangue',7],
   ['pain',7],['baguette',7],
 
-  // --- 14 jours : légumes de garde, agrumes ---
+  // 14 jours : légumes de garde, agrumes
   ['carotte',14],['betterave',14],['navet',14],['chou',14],['citron',14],['orange',14],['clementine',14],
   ['pamplemousse',14],['pomme',14],['poire',14],['kiwi',14],['courge',14],['potiron',14],['gingembre',14],
 
-  // --- 21 jours : produits laitiers, fromages frais, charcuterie et pâtes/pâtons scellés ---
-  // Tant que l'emballage est fermé, ces produits tiennent facilement 3 semaines — c'est une
-  // fois ouverts qu'ils deviennent fragiles, ce que l'app ne peut pas détecter.
+  // 21 jours : produits laitiers, fromages frais, charcuterie et pâtes/pâtons scellés
   ['oeuf',21],['fromage',21],
   ['yaourt',21],['fromage blanc',21],['faisselle',21],['brie',21],['camembert',21],
   ['mozzarella',21],['chevre frais',21],['fromage frais',21],['ricotta',21],['mascarpone',21],['tofu',21],
@@ -597,7 +575,7 @@ const SHELF_LIFE=[
   ['pate fraiche',21],['ravioli',21],['tortellini',21],
   ['tortilla',21],['wrap',21],['pate brisee',21],['pate feuilletee',21],['pate a pizza',21],
 
-  // --- 30 jours et plus ---
+  // 30 jours et plus
   ['beurre',30],['pomme de terre',30],['patate douce',30],['oignon',30],['echalote',30],['ail',30],
   ['feta',90],
 ];
@@ -610,8 +588,6 @@ const SHELF_MAP=SHELF_LIFE.slice().sort((a,b)=>b[0].length-a[0].length);
 function shelfLifeDays(name){
   const n=normIng(name);
   if(!n)return null;
-  // On teste aussi une forme dépluralisée : « pommes de terre » doit correspondre à
-  // « pomme de terre » (30 j) et non à « pomme » (14 j), qui en est un sous-ensemble.
   const sing=n.replace(/s\b/g,'').replace(/\s+/g,' ').trim();
   const ov=settings.shelfOverrides||{};
   for(const [k,d] of SHELF_MAP){
@@ -620,15 +596,15 @@ function shelfLifeDays(name){
   return null;
 }
 
-/* Jours calendaires entre aujourd'hui et une échéance (0 = aujourd'hui, négatif = dépassé). */
+/* Jours entre aujourd'hui et une échéance (0 = aujourd'hui, négatif = dépassé). */
 function daysUntil(ts){
   const a=new Date();a.setHours(0,0,0,0);
   const b=new Date(ts);b.setHours(0,0,0,0);
   return Math.round((b-a)/DAY_MS);
 }
 
-/* Échéance d'un repas : celle de son ingrédient acheté le plus fragile.
-   Un ingrédient pas encore acheté n'impose rien — le compte à rebours n'a pas commencé. */
+/* Échéance d'un repas -> celle de son ingrédient acheté le plus fragile.
+*/
 function mealDeadline(meal){
   let best=null;
   for(const it of shopping){
@@ -668,15 +644,11 @@ function sortMealsByPriority(list){
   });
 }
 
-/* ======================================================================
+/* 
    Filtres de recettes
-   ----------------------------------------------------------------------
+   
    Tout est déduit des ingrédients déjà enregistrés : aucune ressaisie.
-   C'est une heuristique par mots-clés, pas une analyse nutritionnelle. Pour les filtres
-   d'exclusion (allergène, régime), on penche volontairement du côté prudent : en cas
-   d'ambiguïté on considère que l'ingrédient EST présent, quitte à masquer une recette à tort.
-   L'inverse — annoncer « sans gluten » à tort — serait autrement plus gênant.
-   ====================================================================== */
+ */
 function normIng(t){
   return stripAccents(String(t||'').toLowerCase())
     .replace(/['’`-]/g,' ').replace(/\s+/g,' ').trim();
@@ -762,7 +734,7 @@ function filterRecipes(list){
 function filterActive(){return !!(rFilter.q||rFilter.excl||rFilter.src||rFilter.tags.size);}
 function resetFilter(){rFilter={q:'',excl:'',tags:new Set(),src:''};}
 
-/* ---------- État ---------- */
+/* État */
 let recipes=[],meals=[],shopping=[],stock=[],settings={id:'app',proxy:'',household:null,shelfOverrides:{}};
 const alive=a=>a.filter(r=>!r.deleted);
 async function loadAll(){
@@ -773,7 +745,7 @@ async function loadAll(){
   const s=await dbGet('settings','app');if(s)settings=s;
 }
 
-/* ---------- Agrégation courses ---------- */
+/* Agrégation courses */
 function findItemByKey(key){return shopping.find(i=>i.key===key&&!i.checked);}
 function itemEffectiveBase(it){let sum=it.manual?(it.manualBase||0):0,has=it.manual&&it.manualBase!=null;for(const s of it.sources){if(s.base!=null){sum+=s.base;has=true;}}return has?sum:null;}
 async function addIngredientToShopping(ing,scale,mealId,recipeName){
@@ -792,7 +764,7 @@ async function removeMealContributions(mealId){
     else await save('shopping',it);
   }
 }
-/* Un repas est d'abord PLANIFIÉ : rien ne part dans les courses tant que la semaine n'est
+/* Un repas est d'abord planifié : rien ne part dans les courses tant que la semaine n'est
    pas validée, puisque le stock peut déjà couvrir une partie des besoins. */
 async function addMeal(recipe,servings){
   const meal={id:uid(),recipeId:recipe.id,recipeName:recipe.name,servings,
@@ -809,9 +781,9 @@ async function removeMeal(mealId){
   await removeMealContributions(mealId);
 }
 
-/* ======================================================================
+/* 
    Import par lien
-   ====================================================================== */
+*/
 function iso8601ToMin(d){if(!d||typeof d!=='string')return null;const m=d.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);if(!m)return null;return (parseInt(m[1]||0)*60)+parseInt(m[2]||0);}
 function firstStr(v){if(typeof v==='string')return v;if(Array.isArray(v))return firstStr(v[0]);if(v&&typeof v==='object')return v.url||v.name||v['@id']||null;return null;}
 function yieldToNum(v){const s=firstStr(v);if(!s)return null;const m=(''+s).match(/\d+/);return m?parseInt(m[0]):null;}
@@ -835,10 +807,6 @@ function extractRecipeFromHTML(html){
 }
 function sourceType(url){const u=(url||'').toLowerCase();if(u.includes('marmiton'))return'marmiton';if(u.includes('jow'))return'jow';if(u.includes('cuisineaz'))return'cuisineaz';if(u.includes('750g'))return'750g';return'web';}
 function isJowUrl(url){try{return /(^|\.)jow\.(fr|com)$/i.test(new URL(url).hostname);}catch(e){return false;}}
-/* Les identifiants Jow ont deux formats : l'ancien ObjectId (24 caractères hexadécimaux) et le
-   nouveau suffixe de slug alphanumérique (ex. 8o4qf9a96uxg2zdj104r). L'ancienne expression
-   régulière ne reconnaissait que le premier, donc les liens jow.fr/recipes/... n'étaient jamais
-   routés vers le parseur Jow. */
 function extractJowId(url){
   try{
     const u=new URL(url);
@@ -854,7 +822,7 @@ function extractJowId(url){
   return null;
 }
 
-/* --- Normalisation d'une recette Jow ---
+/* Normalisation d'une recette Jow
    Structure réelle de l'API : la quantité est dans constituents[].ingredient.quantityPerCover,
    le nombre de couverts est roundedCoversCount, et l'unité se résout en croisant unit.id
    avec naturalUnit ou alternativeUnits de l'ingrédient. */
@@ -912,7 +880,7 @@ function unwrapJow(d){
   return d;
 }
 
-/* --- Recherche Jow (endpoint vérifié : POST /public/recipe/quicksearch) --- */
+/* Recherche Jow (endpoint vérifié : POST /public/recipe/quicksearch) */
 const JOW_SEARCH='https://api.jow.fr/public/recipe/quicksearch';
 async function jowSearch(query,limit){
   const qs='?start=0&availabilityZoneId=FR&limit='+(limit||20)+'&query='+encodeURIComponent(query);
@@ -939,11 +907,8 @@ function viaProxy(t){
   return b?b+'?url='+encodeURIComponent(t):t;
 }
 
-/* --- Lecture d'une page recette jow.com ---
-   Les pages /recipes/<slug>-<id> sont rendues côté serveur : titre, ingrédients, quantités et
-   étapes sont dans le HTML. C'est bien plus fiable que l'API (dont le domaine a changé).
-   Chaque ancre d'ingrédient a un textContent NOM+QUANTITÉ+NOM : on isole la quantité en
-   cherchant le plus long préfixe qui soit aussi suffixe. */
+/* Lecture d'une page recette jow.com
+*/
 function splitJowAnchor(t){
   t=(t||'').replace(/\s+/g,' ').trim();
   if(!t)return null;
@@ -1064,9 +1029,9 @@ async function fetchRecipe(url){
 }
 async function errMsg(res){let m='Erreur '+res.status;try{const j=await res.json();if(j&&j.error)m=j.error;}catch(e){}return m;}
 
-/* ======================================================================
+/*
    Import par photo (OCR)
-   ====================================================================== */
+*/
 const TESS_SRC='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
 let _tessLoading=null;
 function loadTesseract(){
@@ -1123,7 +1088,7 @@ async function ocrImage(file,onProgress){
   } finally { await worker.terminate(); }
 }
 
-/* --- Nettoyage du texte OCR --- */
+/* Nettoyage du texte OCR */
 const OCR_NOISE=/^(ingr[ée]dients?|pr[ée]paration|pr[ée]parations?|recette|[ée]tapes?|instructions?|ustensiles?|mat[ée]riel|nombre de personnes|personnes?|portions?|difficult[ée]|co[ûu]t|budget|calories|note|avis|commentaires?|partager|imprimer|ajouter|voir la recette|publicit[ée]|abonnez|newsletter|connexion|menu|accueil|rechercher|favoris|panier)\b/i;
 const OCR_META=/^(pr[ée]p\.?|cuisson|repos|total|temps de|\d+\s*(min|h|heures?|minutes?)\b|pour\s+\d+\s+personnes?|\d+\s*pers)/i;
 const HDR_START=/^ingr[ée]dients?\b/i;
@@ -1202,19 +1167,9 @@ function parseOcrText(text){
   return{title,ingredients:out};
 }
 
-/* ======================================================================
+/* 
    Synchronisation entre appareils (optionnelle, désactivée par défaut)
-
-   Principe : un "code de partage" secret est saisi sur chaque téléphone. De ce code on dérive
-   DEUX choses distinctes, par PBKDF2 avec des sels différents :
-     - un identifiant de salon (envoyé au serveur) ;
-     - une clé AES-GCM qui ne quitte JAMAIS le téléphone.
-   Le serveur ne stocke que des identifiants, des horodatages et du chiffré : il ne peut pas
-   lire tes recettes, et un autre utilisateur sans le code ne peut rien en tirer.
-
-   Fusion : dernier écrivain gagne, enregistrement par enregistrement (pas en bloc), pour que
-   deux téléphones qui ajoutent chacun un article ne s'écrasent pas mutuellement.
-   ====================================================================== */
+   */
 const SYNC_ITER=150000;
 const b64=u8=>btoa(String.fromCharCode.apply(null,u8));
 const unb64=str=>Uint8Array.from(atob(str),c=>c.charCodeAt(0));
@@ -1254,8 +1209,8 @@ function syncEndpoint(){
   return relayBase()+'/sync';
 }
 
-/* Applique les enregistrements distants : on n'écrase que si l'horodatage distant est
-   strictement plus récent, donc une modification locale postérieure est préservée. */
+/* Applique les enregistrements distants : on n'écrase que si l'heure distante est
+   strictement plus récente, donc une modification locale postérieure est préservée. */
 async function syncApplyRemote(items,key){
   let applied=0;
   for(const it of items){
@@ -1283,7 +1238,6 @@ async function syncRun(manual){
     const url=syncEndpoint();
 
     // 1. Récupérer ce qui a changé sur le serveur depuis notre dernier passage.
-    // Tirage paginé : le serveur plafonne chaque réponse, on boucle tant qu'il reste des pages.
     let since=settings.syncCursor||0,applied=0,cursor=since,guard=0;
     while(guard++<20){
       const pull=await fetch(url+'?room='+room+'&since='+cursor,{headers:{'Accept':'application/json'}});
@@ -1295,12 +1249,7 @@ async function syncRun(manual){
       cursor=next;
     }
 
-    // 2. Envoyer nos modifications locales postérieures au dernier envoi.
-    // Borne d'envoi : on repart du plus grand horodatage réellement envoyé, et la comparaison
-    // est STRICTE. Avec un <= et l'heure murale, tout enregistrement écrit dans la même
-    // milliseconde qu'une synchro terminée n'était jamais envoyé — donc perdu pour l'autre
-    // appareil. Réémettre l'enregistrement de la borne est sans effet (le serveur ignore les
-    // horodatages non strictement supérieurs).
+    // 2. Envoyer nos modifications locales postérieures au dernier envoi
     const lastPush=settings.syncPushedAt||0;
     const out=[];let maxTs=lastPush;
     for(const store of SYNCED_STORES){
@@ -1340,9 +1289,9 @@ function syncSoon(){
   _sync.timer=setTimeout(()=>syncRun(false),4000);
 }
 
-/* --- Diagnostic du relais ---
+/* Diagnostic du relais
    Distingue les trois échecs possibles : URL absente, Worker injoignable, Worker joignable mais
-   refusant le domaine. Sans ça, tout se ressemble : « Failed to fetch ». */
+   refusant le domaine. */
 async function testRelay(){
   const base=relayBase();
   if(!base)return{ok:false,msg:'Aucune URL de relais renseignée.'};
@@ -1364,9 +1313,9 @@ async function testRelay(){
   }
 }
 
-/* ======================================================================
+/* 
    UI
-   ====================================================================== */
+*/
 const $=s=>document.querySelector(s);
 const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;};
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1376,7 +1325,6 @@ function setTab(tab){document.querySelectorAll('.tab').forEach(s=>s.classList.re
 function updateBadges(){
   const nc=shopping.filter(i=>!i.checked).length;
   const bc=$('#badge-courses');bc.hidden=nc===0;bc.textContent=nc;
-  // Le badge Repas privilégie ce qui reste à valider : c'est l'action en attente.
   const np=plannedMeals().length;
   const bm=$('#badge-repas');
   const nb=np||meals.length;
@@ -1411,7 +1359,6 @@ function itemRow(it){
   const chk=el('button','check');chk.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5L19 7"/></svg>';
   chk.onclick=async()=>{
     it.checked=!it.checked;
-    // L'horodatage de l'achat démarre le compte à rebours de péremption.
     if(it.checked)it.checkedAt=Date.now();else delete it.checkedAt;
     row.classList.toggle('done',it.checked);
     await save('shopping',it);
@@ -1453,12 +1400,17 @@ function mealCard(m,dl){
     const badge=el('div','dl '+lvl);
     badge.textContent=(n<0?'⚠️ ':(n<=1?'⏰ ':'🕒 '))+deadlineLabel(n);
     b.appendChild(badge);
-    // Dire QUEL ingrédient impose la date : c'est l'information actionnable.
     b.appendChild(el('div','dl-why','à cause de : '+dl.ingredient));
   }
   const del=el('button','del');del.innerHTML='<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
   del.style.cssText='flex:none;color:var(--muted);width:34px;height:34px;border-radius:9px;display:grid;place-items:center';
-  del.onclick=async()=>{await removeMeal(m.id);renderRepas();renderCourses();updateBadges();toast('Repas retiré — courses mises à jour');};
+  del.onclick=async()=>{
+    const msg=mealStatus(m)==='validated'
+      ? 'Retirer ce repas ? Les quantités déjà prélevées sur le stock y retourneront, et sa contribution aux courses sera retirée.'
+      : 'Retirer ce repas planifié ?';
+    if(!confirm(msg))return;
+    await removeMeal(m.id);renderRepas();renderCourses();updateBadges();toast('Repas retiré — courses mises à jour');
+  };
   card.appendChild(th);card.appendChild(b);card.appendChild(del);
   card.onclick=e=>{if(e.target.closest('.del'))return;if(r)openRecipeDetail(r);};
   return card;
@@ -1467,8 +1419,6 @@ function mealCard(m,dl){
 function renderRepas(){
   const body=$('#repas-body');body.innerHTML='';
   if(meals.length===0){body.appendChild(emptyState('🍽️','Aucun repas planifié','Choisis une recette : elle rejoint cette liste et ses ingrédients partent dans les courses.',{label:'Planifier un repas',fn:openMealPicker}));updateBadges();return;}
-
-  // Les repas planifiés attendent la validation : ils n'ont ni courses ni échéance.
   const planned=meals.filter(m=>mealStatus(m)==='planned');
   const done=meals.filter(m=>mealStatus(m)!=='planned');
   const sorted=sortMealsByPriority(done);
@@ -1500,8 +1450,6 @@ function renderRepas(){
     });
     body.appendChild(list);
   }
-
-  // Bandeau d'alerte pour le cas le plus pressant.
   if(withDl.length){
     const n=daysUntil(withDl[0].d.ts);
     if(n<=1){
@@ -1555,8 +1503,6 @@ function recipeCard(r){
   return card;
 }
 
-/* La barre de filtres est construite UNE fois ; seule la liste est rafraîchie à chaque frappe,
-   sans quoi le champ de recherche perdrait le focus à chaque caractère. */
 function buildFilterBar(){
   const bar=el('div','fbar');
 
@@ -1635,7 +1581,6 @@ function refreshRecipeList(){
   wrap.appendChild(list);
 }
 
-/* ---------- Onglet Stock ---------- */
 function renderStock(){
   const body=$('#stock-body');if(!body)return;
   body.innerHTML='';
@@ -1715,11 +1660,8 @@ function openStockEdit(it){
   });
 }
 
-/* ---------- Remplissage par photo ----------
-   La lecture brute d'une \u00e9tag\u00e8re produit un texte tr\u00e8s bruit\u00e9. On ne fait donc pas confiance
-   \u00e0 l'OCR seul : chaque ligne est rapproch\u00e9e d'un VOCABULAIRE connu (rayons, ingr\u00e9dients de tes
-   recettes, stock existant, table de conservation). Ce qui ne correspond \u00e0 rien est ignor\u00e9,
-   et rien n'est ajout\u00e9 sans confirmation. */
+/* Remplissage par photo
+*/
 function stockVocabulary(){
   const v=new Map();
   const add=n=>{const k=normIng(n);if(k.length>=3&&!v.has(k))v.set(k,n);};
@@ -1729,11 +1671,7 @@ function stockVocabulary(){
   for(const pair of SHELF_MAP)if(pair[0])add(pair[0]);
   return [...v.entries()].sort((a,b)=>b[0].length-a[0].length);
 }
-/* Rapprochement mot à mot, et non par sous-chaîne : sans cela « LAIT DEMI ECREME »
-   serait reconnu comme « crème », puisque « creme » est contenu dans « ecreme ».
-   On teste aussi une forme dépluralisée (« pois chiches » → « pois chiche »), et on
-   privilégie la correspondance la plus À GAUCHE : une étiquette commence par le produit
-   (« SEMOULE COUSCOUS 500G » désigne d'abord de la semoule). */
+/* Rapprochement mot à mot, et pas par sous-chaine. */
 function matchVocab(n,vocab){
   const sing=n.replace(/s\b/g,'').replace(/\s+/g,' ').trim();
   let best=null;
@@ -1852,7 +1790,7 @@ function openStockConfirm(cands){
   });
 }
 
-/* ---------- Validation de la semaine ---------- */
+/* Validation de la semaine */
 function openValidatePlan(){
   const list=plannedMeals();
   if(!list.length){toast('Aucun repas en attente');return;}
@@ -1910,7 +1848,7 @@ function emptyState(glyph,title,text,action){
   return e;
 }
 
-/* ---------- Sheet ---------- */
+/* Sheet */
 function openSheet(title,build){$('#sheet-title').textContent=title;const c=$('#sheet-content');c.innerHTML='';build(c);$('#scrim').classList.add('show');$('#sheet').classList.add('show');document.body.style.overflow='hidden';}
 function closeSheet(){$('#scrim').classList.remove('show');$('#sheet').classList.remove('show');document.body.style.overflow='';}
 $('#scrim').onclick=closeSheet;$('#sheet-close').onclick=closeSheet;
@@ -1999,7 +1937,7 @@ function openRecipeDetail(r){
   });
 }
 
-/* ---------- Import : choix de la méthode ---------- */
+/* Import : choix de la méthode */
 function openImport(prefillUrl){
   openSheet('Importer une recette',c=>{
     const o1=el('button','opt');
@@ -2175,14 +2113,7 @@ function openImportPhoto(){
   });
 }
 
-/* ---------- Recherche d'images libres de droits (Wikimedia Commons) ----------
-   Wikimedia Commons héberge des images sous licence Creative Commons ou domaine public.
-   Recherche anonyme, sans clé API, directement depuis le navigateur (CORS ouvert via
-   ?origin=*). Openverse a été essayé en premier mais exige désormais une authentification
-   OAuth2 pour chaque recherche — inutilisable sans clé, qu'on ne veut pas exposer côté
-   client. Certaines licences (CC-BY) demandent de créditer l'auteur en cas de
-   republication — nom et licence sont affichés sur chaque vignette, sans être stockés
-   (l'app ne garde que l'URL de l'image, comme pour une image importée depuis une recette web). */
+/* Recherche d'images libres de droits (Wikimedia Commons) */
 const COMMONS_IMG_EXT=/\.(jpe?g|png|gif|webp)$/i;
 function stripHtml(h){return String(h||'').replace(/<[^>]+>/g,'').trim();}
 async function commonsImageSearch(query){
@@ -2258,7 +2189,7 @@ function openImagePicker(initialQuery,onPick){
   });
 }
 
-/* ---------- Formulaire recette ---------- */
+/* Formulaire recette */
 function openRecipeForm(recipe){
   const isNew=!recipe.id;
   const data={
@@ -2348,7 +2279,7 @@ function openRecipeForm(recipe){
     const sta=el('textarea');sta.value=data.steps.join('\n');sta.style.minHeight='120px';
     stepsF.appendChild(sta);c.appendChild(stepsF);
 
-    // NB : ne pas nommer cette variable « save » — elle masquerait la fonction globale save().
+    // ne pas nommer cette variable « save » — elle masquerait la fonction globale save().
     const btnSave=el('button','btn btn-primary btn-block');btnSave.style.marginTop='4px';
     btnSave.innerHTML='<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Enregistrer la recette';
     btnSave.onclick=async()=>{
@@ -2373,7 +2304,7 @@ function field(label,value,type){
   wrap.appendChild(input);return{wrap,input};
 }
 
-/* ---------- Durées de péremption (personnalisables) ---------- */
+/* Durées de péremption (personnalisables) */
 function openShelfLifeSettings(){
   const pending=Object.assign({},settings.shelfOverrides||{});
   openSheet('Durées de péremption',c=>{
@@ -2450,13 +2381,7 @@ function openShelfLifeSettings(){
   });
 }
 
-/* ---------- Partage du code de synchro par QR code ----------
-   Le QR encode une URL de l'app avec le code (et l'URL du relais si personnalisée) en
-   paramètres : l'appareil photo natif de l'autre téléphone propose de l'ouvrir, et l'app
-   applique le code toute seule au démarrage (voir boot()). Le QR est généré et affiché
-   entièrement en local — comme le reste de la synchro, le code ne transite par aucun
-   serveur tiers. Bibliothèque chargée à la demande (même schéma que l'OCR), mise en cache
-   par le service worker pour fonctionner hors-ligne après le premier usage. */
+/* Partage du code de synchro par QR code */
 const QR_SRC='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
 let _qrLoading=null;
 function loadQr(){
@@ -2508,7 +2433,7 @@ function openSyncQr(secret){
   });
 }
 
-/* ---------- Réglages ---------- */
+/* Réglages */
 function openSettings(){
   openSheet('Réglages',c=>{
     c.appendChild(sectionEyebrow('Foyer',settings.household?settings.household+' pers.':'non défini'));
@@ -2535,8 +2460,6 @@ function openSettings(){
     shelfBtn.onclick=()=>openShelfLifeSettings();
     c.appendChild(shelfBtn);
 
-    // Le relais est pré-configuré et fonctionne sans intervention : ces réglages ne concernent
-    // que le déploiement d'un Worker perso, donc masqués derrière un repli technique.
     const relayToggle=el('button','btn btn-ghost btn-block','⚙️ Réglage technique : relais d’import');
     relayToggle.style.marginBottom='8px';
     const relayBox=el('div');relayBox.style.display='none';
@@ -2568,7 +2491,7 @@ function openSettings(){
     relayBox.appendChild(test);relayBox.appendChild(tres);
     c.appendChild(relayBox);
 
-    // --- Synchronisation entre appareils ---
+    // Synchronisation entre appareils
     c.appendChild(sectionEyebrow('Synchro entre appareils',syncEnabled()?'active':'inactive'));
     // Pré-rempli avec le relais par défaut : sans intérêt pour un usage normal, donc masqué.
     const su=el('div','field');su.style.display='none';su.innerHTML='<label>URL du serveur de synchro</label>';
@@ -2629,14 +2552,18 @@ function openSettings(){
     uh.style.marginBottom='4px';
     c.appendChild(uh);
 
-    c.appendChild(sectionEyebrow('Données',recipes.length+meals.length+shopping.length));
+    c.appendChild(sectionEyebrow('Données',recipes.length+meals.length+shopping.length+stock.length));
     const stat=el('div','hint');
-    stat.textContent=recipes.length+' recettes · '+meals.length+' repas · '+shopping.length+' articles. Tout est stocké sur cet appareil.';
+    stat.textContent=recipes.length+' recettes · '+meals.length+' repas · '+shopping.length+' articles · '+stock.length+' en stock. Tout est stocké sur cet appareil.';
     stat.style.marginBottom='12px';c.appendChild(stat);
 
     const exp=el('button','btn btn-ghost btn-block','Exporter (sauvegarde JSON)');exp.style.marginBottom='8px';
     exp.onclick=()=>{
-      const dump={recipes,meals,shopping,settings,_v:1,_date:new Date().toISOString()};
+      // Construit à partir de SYNCED_STORES plutôt que listé à la main, pour ne pas oublier
+      // un store si un autre est ajouté un jour (c'est ce qui manquait pour "stock").
+      const state={recipes,meals,shopping,stock};
+      const dump={settings,_v:1,_date:new Date().toISOString()};
+      for(const st of SYNCED_STORES)dump[st]=state[st];
       const blob=new Blob([JSON.stringify(dump,null,2)],{type:'application/json'});
       const a=el('a');a.href=URL.createObjectURL(blob);a.download='panier-sauvegarde.json';a.click();
     };
@@ -2650,9 +2577,9 @@ function openSettings(){
         const d=JSON.parse(await file.text());
         if(!d||typeof d!=='object')throw new Error('structure');
         if(!confirm('Remplacer les données actuelles par la sauvegarde ?'))return;
-        // On écrit D'ABORD, on retire ensuite : à aucun moment les données ne sont
+        // On écrit d'abord, on retire ensuite : à aucun moment les données ne sont
         // détruites avant que la sauvegarde ne soit effectivement en place.
-        const keep={recipes:new Set(),meals:new Set(),shopping:new Set()};
+        const keep={};for(const st of SYNCED_STORES)keep[st]=new Set();
         for(const st of SYNCED_STORES){
           for(const rec of (d[st]||[])){
             if(!rec||!rec.id)continue;
@@ -2673,27 +2600,15 @@ function openSettings(){
 
     const clr=el('button','btn btn-danger btn-block','Tout effacer');
     clr.onclick=async()=>{
-      if(!confirm('Effacer toutes les recettes, repas et courses ? Action irréversible.'))return;
+      if(!confirm('Effacer toutes les recettes, repas, stock et courses ? Action irréversible.'))return;
       for(const st of SYNCED_STORES)await tombstoneAll(st);
-      recipes=[];meals=[];shopping=[];closeSheet();renderAll();toast('Données effacées');
+      recipes=[];meals=[];shopping=[];stock=[];closeSheet();renderAll();toast('Données effacées');
     };
     c.appendChild(clr);
   });
 }
 
-/* ---------- Tutoriel interactif ----------
-   Affiché automatiquement au tout premier lancement (settings.tutorialSeen absent), et
-   accessible à tout moment via le bouton Aide de la barre du haut. Marqué comme vu dès
-   qu'il est fermé, qu'il ait été terminé ou passé — pas de raison de le remontrer.
-
-   Deux types d'étape :
-   - « center » : carte au milieu de l'écran, sans cible (intro / conclusion).
-   - « tap » : le VRAI bouton de l'appli est encadré dans son écran normal ; l'utilisateur
-     doit taper dessus pour continuer, ce qui déclenche la vraie action (changer d'onglet,
-     ouvrir un écran...). Seuls des éléments toujours présents dans le DOM sont ciblés
-     (barre d'onglets, barre du haut, boutons statiques Importer/Nouvelle/Réglages) : pas de
-     bouton qui n'existe que sur une liste vide, pour que le tutoriel fonctionne aussi bien
-     au premier lancement que rappelé plus tard sur un compte déjà rempli. */
+/* Tutoriel interactif */
 const TOUR_STEPS=[
   {kind:'center',icon:'🍽️',title:'Bienvenue dans Panier',
    text:'Recettes, stock, repas et courses sont reliés entre eux. On fait un tour rapide des boutons essentiels — tape sur les éléments encadrés pour avancer.'},
@@ -2819,7 +2734,7 @@ function renderTourStep(){
   }
 }
 
-/* ---------- Câblage ---------- */
+/* Cablage */
 function renderAll(){renderCourses();renderRepas();renderStock();renderRecettes();updateBadges();}
 document.querySelectorAll('nav.tabbar button').forEach(b=>{b.onclick=()=>setTab(b.dataset.tab);});
 $('#qa-btn').onclick=quickAdd;
@@ -2831,11 +2746,8 @@ $('#btn-help').onclick=openTutorial;
 $('#btn-import').onclick=()=>openImport();
 $('#btn-new').onclick=()=>openRecipeForm({});
 
-/* ---------- Mises à jour de l'application ----------
-   Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
-   suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
-   lui-même a changé : on propose alors un rechargement en un geste. */
-const APP_VERSION='1.10.2';
+/* Mises à jour de l'application */
+const APP_VERSION='1.10.3';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -2897,9 +2809,7 @@ function initServiceWorker(){
   });
 }
 
-/* Réception d'un code de synchro scanné en QR (voir openSyncQr). L'URL n'est qu'un porteur :
-   on applique le code puis on la nettoie immédiatement, pour ne pas le laisser traîner dans
-   l'historique du navigateur. */
+/* Réception d'un code de synchro scanné en QR. */
 async function applySyncCodeFromUrl(q){
   const secret=q.get('syncSecret');
   const url=q.get('syncUrl');
