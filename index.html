@@ -111,6 +111,21 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .sheet .close:active{background:#eee6d8}
 .sheet .close svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round}
 .sheet .content{overflow-y:auto;padding:2px 16px 18px;-webkit-overflow-scrolling:touch}
+/* --- tutoriel de bienvenue --- */
+.onboard{position:fixed;inset:0;z-index:80;background:var(--paper);display:flex;flex-direction:column;
+  padding:calc(env(safe-area-inset-top) + 14px) 22px calc(env(safe-area-inset-bottom) + 22px);
+  transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.8,.2,1)}
+.onboard.show{transform:none}
+.ob-skip{align-self:flex-end;color:var(--muted);font-weight:600;font-size:14px;padding:8px 4px}
+.ob-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:0 8px}
+.ob-ic{font-size:64px;line-height:1}
+.ob-title{font-family:var(--ff-display);font-weight:700;font-size:23px}
+.ob-text{color:var(--muted);font-size:15px;line-height:1.55;max-width:360px}
+.ob-dots{display:flex;justify-content:center;gap:7px;margin:18px 0}
+.ob-dot{width:7px;height:7px;border-radius:50%;background:var(--hair)}
+.ob-dot.on{background:var(--pine);width:20px;border-radius:4px;transition:.2s}
+.ob-foot{display:flex;gap:10px}
+.ob-foot .btn{flex:1}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
 .field input,.field textarea{width:100%;border:1.5px solid var(--hair);background:var(--card);border-radius:12px;padding:12px 13px;outline:none;transition:.15s}
@@ -208,6 +223,9 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 
 <div class="appbar">
   <h1><span class="leafmark"></span><span id="bar-title">Courses</span></h1>
+  <button class="iconbtn" id="btn-help" aria-label="Aide">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.5 9a2.5 2.5 0 0 1 4.9.8c0 1.7-2.4 2-2.4 3.7"/><circle cx="12" cy="17" r="0.1" fill="currentColor" stroke-width="2.2"/></svg>
+  </button>
   <button class="iconbtn" id="btn-settings" aria-label="Réglages">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
   </button>
@@ -256,6 +274,7 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="onboard" id="onboard"></div>
 
 <script>
 "use strict";
@@ -2591,6 +2610,69 @@ function openSettings(){
   });
 }
 
+/* ---------- Tutoriel de bienvenue ----------
+   Affiché automatiquement au tout premier lancement (settings.tutorialSeen absent), et
+   accessible à tout moment via le bouton Aide de la barre du haut. Marqué comme vu dès
+   qu'il est fermé, qu'il ait été terminé ou passé — pas de raison de le remontrer. */
+const TUTORIAL_STEPS=[
+  {icon:'🍽️',title:'Bienvenue dans Panier',
+   text:'Recettes, stock, repas et courses sont reliés entre eux : ajoute une recette, planifie-la, et l’app se charge du reste.'},
+  {icon:'📖',title:'Tes recettes',
+   text:'Importe depuis un lien (Marmiton, Jow, CuisineAZ, 750g), depuis une photo, ou saisis-les à la main. Recherche et filtre-les par régime, ingrédient ou provenance.'},
+  {icon:'🍲',title:'Planifier un repas',
+   text:'Choisis une recette et un nombre de personnes : elle rejoint tes repas « en attente de validation ». Rien ne part encore dans les courses.'},
+  {icon:'🥫',title:'Ton stock',
+   text:'Renseigne ce que tu as déjà, à la main ou par photo. À la validation de la semaine, seul ce qu’il te manque vraiment part dans les courses.'},
+  {icon:'🛒',title:'Les courses',
+   text:'Triées par rayon, cochées au fur et à mesure. Chaque article garde la trace des recettes qui l’ont demandé.'},
+  {icon:'⏰',title:'Ne rien gâcher',
+   text:'Cocher un article démarre son compte à rebours de péremption. Les repas les plus urgents remontent en tête de l’onglet Repas.'},
+  {icon:'📱',title:'Synchroniser deux téléphones',
+   text:'Dans Réglages, active la synchro avec un code secret partagé : recettes, repas, stock et courses restent à jour sur les deux appareils.'},
+];
+let _obStep=0;
+function renderOnboard(){
+  const ov=$('#onboard');ov.innerHTML='';
+  const skip=el('button','ob-skip','Passer');skip.onclick=closeOnboard;
+  ov.appendChild(skip);
+
+  const s=TUTORIAL_STEPS[_obStep];
+  const body=el('div','ob-body');
+  body.appendChild(el('div','ob-ic',s.icon));
+  body.appendChild(el('div','ob-title',s.title));
+  body.appendChild(el('div','ob-text',s.text));
+  ov.appendChild(body);
+
+  const dots=el('div','ob-dots');
+  TUTORIAL_STEPS.forEach((_,i)=>dots.appendChild(el('span','ob-dot'+(i===_obStep?' on':''))));
+  ov.appendChild(dots);
+
+  const foot=el('div','ob-foot');
+  if(_obStep>0){
+    const back=el('button','btn btn-ghost','Précédent');
+    back.onclick=()=>{_obStep--;renderOnboard();};
+    foot.appendChild(back);
+  }
+  const isLast=_obStep===TUTORIAL_STEPS.length-1;
+  const next=el('button','btn btn-accent',isLast?'C’est parti':'Suivant');
+  next.onclick=()=>{if(isLast)closeOnboard();else{_obStep++;renderOnboard();}};
+  foot.appendChild(next);
+  ov.appendChild(foot);
+}
+function openOnboard(){
+  _obStep=0;renderOnboard();
+  requestAnimationFrame(()=>$('#onboard').classList.add('show'));
+  document.body.style.overflow='hidden';
+}
+async function closeOnboard(){
+  $('#onboard').classList.remove('show');
+  document.body.style.overflow='';
+  if(!settings.tutorialSeen){
+    settings.tutorialSeen=true;settings.id='app';
+    await dbPut('settings',settings);
+  }
+}
+
 /* ---------- Câblage ---------- */
 function renderAll(){renderCourses();renderRepas();renderStock();renderRecettes();updateBadges();}
 document.querySelectorAll('nav.tabbar button').forEach(b=>{b.onclick=()=>setTab(b.dataset.tab);});
@@ -2599,6 +2681,7 @@ const _stb=$('#st-btn');if(_stb)_stb.onclick=stockQuickAdd;
 const _sti=$('#st-input');if(_sti)_sti.addEventListener('keydown',e=>{if(e.key==='Enter')stockQuickAdd();});
 $('#qa-input').addEventListener('keydown',e=>{if(e.key==='Enter')quickAdd();});
 $('#btn-settings').onclick=openSettings;
+$('#btn-help').onclick=openOnboard;
 $('#btn-import').onclick=()=>openImport();
 $('#btn-new').onclick=()=>openRecipeForm({});
 
@@ -2606,7 +2689,7 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
    suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
    lui-même a changé : on propose alors un rechargement en un geste. */
-const APP_VERSION='1.9.0';
+const APP_VERSION='1.10.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -2677,6 +2760,7 @@ async function boot(){
   const m=shared.match(/https?:\/\/\S+/);
   if(m){setTab('recettes');openImportLink(m[0]);}
   else if(q.get('action')==='import'){setTab('recettes');openImport();}
+  else if(!settings.tutorialSeen){openOnboard();}
   initServiceWorker();
   purgeTombstones().catch(()=>{});
   if(syncEnabled()){

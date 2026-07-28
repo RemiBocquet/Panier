@@ -10,6 +10,9 @@ au stock et pousse le manque réel dans les courses (voir [Stock et validation d
 1. Sur Android, ouvrir l'URL dans Chrome → menu ⋮ → **Installer l'application**.
 2. L'icône apparaît sur l'écran d'accueil, l'app s'ouvre en plein écran.
 
+Un court tutoriel s'affiche automatiquement au premier lancement. Il reste accessible ensuite
+via le bouton **?** de la barre du haut.
+
 ## Les trois façons d'ajouter une recette
 
 **Depuis un lien** — Recettes → Importer → Depuis un lien.
