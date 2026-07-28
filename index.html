@@ -111,21 +111,26 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .sheet .close:active{background:#eee6d8}
 .sheet .close svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round}
 .sheet .content{overflow-y:auto;padding:2px 16px 18px;-webkit-overflow-scrolling:touch}
-/* --- tutoriel de bienvenue --- */
-.onboard{position:fixed;inset:0;z-index:80;background:var(--paper);display:flex;flex-direction:column;
-  padding:calc(env(safe-area-inset-top) + 14px) 22px calc(env(safe-area-inset-bottom) + 22px);
-  transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.8,.2,1)}
-.onboard.show{transform:none}
-.ob-skip{align-self:flex-end;color:var(--muted);font-weight:600;font-size:14px;padding:8px 4px}
-.ob-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:0 8px}
-.ob-ic{font-size:64px;line-height:1}
-.ob-title{font-family:var(--ff-display);font-weight:700;font-size:23px}
-.ob-text{color:var(--muted);font-size:15px;line-height:1.55;max-width:360px}
-.ob-dots{display:flex;justify-content:center;gap:7px;margin:18px 0}
-.ob-dot{width:7px;height:7px;border-radius:50%;background:var(--hair)}
-.ob-dot.on{background:var(--pine);width:20px;border-radius:4px;transition:.2s}
-.ob-foot{display:flex;gap:10px}
-.ob-foot .btn{flex:1}
+/* --- tutoriel interactif : montre les vrais boutons, à taper dans le vrai écran --- */
+#tour{position:fixed;inset:0;z-index:80;display:none;pointer-events:none}
+#tour.show{display:block}
+#tour-bg{position:fixed;inset:0;background:var(--paper);display:none;pointer-events:auto}
+#tour-hole{position:fixed;display:none;border-radius:14px;pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(20,16,12,.72);transition:left .25s,top .25s,width .25s,height .25s}
+.tour-card{position:fixed;z-index:81;background:var(--card);border-radius:16px;box-shadow:var(--shadow-lg);
+  padding:16px 18px;pointer-events:auto;transition:left .25s,top .25s,bottom .25s}
+.tour-card.center{left:50%!important;top:50%!important;bottom:auto!important;transform:translate(-50%,-50%);text-align:center;padding:26px 22px}
+.tour-card .ic{font-size:44px;line-height:1;margin-bottom:6px}
+.tour-card h3{font-family:var(--ff-display);font-size:18px;margin:0 0 6px}
+.tour-card p{color:var(--muted);font-size:14px;line-height:1.5;margin:0 0 12px}
+.tour-dots{display:flex;justify-content:center;gap:6px;margin-bottom:12px}
+.tour-dot{width:6px;height:6px;border-radius:50%;background:var(--hair)}
+.tour-dot.on{background:var(--pine);width:16px;border-radius:3px;transition:.2s}
+.tour-foot{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.tour-card.center .tour-foot{justify-content:center;flex-direction:column-reverse;gap:12px}
+.tour-card.center .tour-foot .btn{width:100%}
+.tour-skip{color:var(--muted);font-size:12.5px;font-weight:600;padding:6px 2px;flex:none}
+.tour-hint{color:var(--pine);font-size:12.5px;font-weight:700;text-align:right}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
 .field input,.field textarea{width:100%;border:1.5px solid var(--hair);background:var(--card);border-radius:12px;padding:12px 13px;outline:none;transition:.15s}
@@ -274,7 +279,11 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 </div>
 
 <div class="toast" id="toast"></div>
-<div class="onboard" id="onboard"></div>
+<div id="tour">
+  <div id="tour-bg"></div>
+  <div id="tour-hole"></div>
+  <div class="tour-card" id="tour-card"></div>
+</div>
 
 <script>
 "use strict";
@@ -2610,66 +2619,141 @@ function openSettings(){
   });
 }
 
-/* ---------- Tutoriel de bienvenue ----------
+/* ---------- Tutoriel interactif ----------
    Affiché automatiquement au tout premier lancement (settings.tutorialSeen absent), et
    accessible à tout moment via le bouton Aide de la barre du haut. Marqué comme vu dès
-   qu'il est fermé, qu'il ait été terminé ou passé — pas de raison de le remontrer. */
-const TUTORIAL_STEPS=[
-  {icon:'🍽️',title:'Bienvenue dans Panier',
-   text:'Recettes, stock, repas et courses sont reliés entre eux : ajoute une recette, planifie-la, et l’app se charge du reste.'},
-  {icon:'📖',title:'Tes recettes',
-   text:'Importe depuis un lien (Marmiton, Jow, CuisineAZ, 750g), depuis une photo, ou saisis-les à la main. Recherche et filtre-les par régime, ingrédient ou provenance.'},
-  {icon:'🍲',title:'Planifier un repas',
-   text:'Choisis une recette et un nombre de personnes : elle rejoint tes repas « en attente de validation ». Rien ne part encore dans les courses.'},
-  {icon:'🥫',title:'Ton stock',
-   text:'Renseigne ce que tu as déjà, à la main ou par photo. À la validation de la semaine, seul ce qu’il te manque vraiment part dans les courses.'},
-  {icon:'🛒',title:'Les courses',
-   text:'Triées par rayon, cochées au fur et à mesure. Chaque article garde la trace des recettes qui l’ont demandé.'},
-  {icon:'⏰',title:'Ne rien gâcher',
-   text:'Cocher un article démarre son compte à rebours de péremption. Les repas les plus urgents remontent en tête de l’onglet Repas.'},
-  {icon:'📱',title:'Synchroniser deux téléphones',
-   text:'Dans Réglages, active la synchro avec un code secret partagé : recettes, repas, stock et courses restent à jour sur les deux appareils.'},
+   qu'il est fermé, qu'il ait été terminé ou passé — pas de raison de le remontrer.
+
+   Deux types d'étape :
+   - « center » : carte au milieu de l'écran, sans cible (intro / conclusion).
+   - « tap » : le VRAI bouton de l'appli est encadré dans son écran normal ; l'utilisateur
+     doit taper dessus pour continuer, ce qui déclenche la vraie action (changer d'onglet,
+     ouvrir un écran...). Seuls des éléments toujours présents dans le DOM sont ciblés
+     (barre d'onglets, barre du haut, boutons statiques Importer/Nouvelle/Réglages) : pas de
+     bouton qui n'existe que sur une liste vide, pour que le tutoriel fonctionne aussi bien
+     au premier lancement que rappelé plus tard sur un compte déjà rempli. */
+const TOUR_STEPS=[
+  {kind:'center',icon:'🍽️',title:'Bienvenue dans Panier',
+   text:'Recettes, stock, repas et courses sont reliés entre eux. On fait un tour rapide des boutons essentiels — tape sur les éléments encadrés pour avancer.'},
+  {kind:'tap',sel:'nav.tabbar button[data-tab="recettes"]',title:'Tes recettes',
+   text:'Commence ici : c’est ta bibliothèque de recettes. Tape sur « Recettes ».'},
+  {kind:'tap',tab:'recettes',sel:'#btn-import',after:'sheet',title:'Importer une recette',
+   text:'Depuis un lien (Marmiton, Jow, CuisineAZ, 750g...), une recherche, ou une photo. Tape sur « Importer ».'},
+  {kind:'tap',tab:'recettes',sel:'#btn-new',after:'sheet',title:'...ou à la main',
+   text:'Pas de lien sous la main ? Crée une recette vierge : nom, ingrédients, étapes. Tape sur « Nouvelle ».'},
+  {kind:'tap',sel:'nav.tabbar button[data-tab="repas"]',title:'Tes repas',
+   text:'Planifie une recette ici : elle attend d’être validée, sans rien pousser dans les courses. Tape sur « Repas ».'},
+  {kind:'tap',sel:'nav.tabbar button[data-tab="stock"]',title:'Ton stock',
+   text:'Renseigne ce que tu as déjà, à la main ou par photo. La validation de la semaine ne fera acheter que ce qu’il te manque. Tape sur « Stock ».'},
+  {kind:'tap',sel:'nav.tabbar button[data-tab="courses"]',title:'Les courses',
+   text:'Générées automatiquement, triées par rayon. Cocher un article démarre son compte à rebours de péremption. Tape sur « Courses ».'},
+  {kind:'tap',sel:'#btn-settings',after:'sheet',title:'Réglages',
+   text:'Foyer, durées de péremption personnalisables, synchro entre téléphones, sauvegarde : tout est là. Tape sur l’engrenage.'},
+  {kind:'center',icon:'✅',title:'Prêt à cuisiner',
+   text:'Retrouve ce tutoriel à tout moment via le bouton « ? » en haut. Bon appétit !'},
 ];
-let _obStep=0;
-function renderOnboard(){
-  const ov=$('#onboard');ov.innerHTML='';
-  const skip=el('button','ob-skip','Passer');skip.onclick=closeOnboard;
-  ov.appendChild(skip);
+let _tourIdx=0,_tourCleanup=null;
 
-  const s=TUTORIAL_STEPS[_obStep];
-  const body=el('div','ob-body');
-  body.appendChild(el('div','ob-ic',s.icon));
-  body.appendChild(el('div','ob-title',s.title));
-  body.appendChild(el('div','ob-text',s.text));
-  ov.appendChild(body);
-
-  const dots=el('div','ob-dots');
-  TUTORIAL_STEPS.forEach((_,i)=>dots.appendChild(el('span','ob-dot'+(i===_obStep?' on':''))));
-  ov.appendChild(dots);
-
-  const foot=el('div','ob-foot');
-  if(_obStep>0){
-    const back=el('button','btn btn-ghost','Précédent');
-    back.onclick=()=>{_obStep--;renderOnboard();};
-    foot.appendChild(back);
-  }
-  const isLast=_obStep===TUTORIAL_STEPS.length-1;
-  const next=el('button','btn btn-accent',isLast?'C’est parti':'Suivant');
-  next.onclick=()=>{if(isLast)closeOnboard();else{_obStep++;renderOnboard();}};
-  foot.appendChild(next);
-  ov.appendChild(foot);
-}
-function openOnboard(){
-  _obStep=0;renderOnboard();
-  requestAnimationFrame(()=>$('#onboard').classList.add('show'));
+function openTutorial(){
+  _tourIdx=0;
+  $('#tour').classList.add('show');
   document.body.style.overflow='hidden';
+  renderTourStep();
 }
-async function closeOnboard(){
-  $('#onboard').classList.remove('show');
+function endTutorial(){
+  if(_tourCleanup){_tourCleanup();_tourCleanup=null;}
+  $('#tour').classList.remove('show');
+  $('#tour-bg').style.display='none';$('#tour-hole').style.display='none';
   document.body.style.overflow='';
   if(!settings.tutorialSeen){
     settings.tutorialSeen=true;settings.id='app';
-    await dbPut('settings',settings);
+    dbPut('settings',settings);
+  }
+}
+function nextTourStep(){
+  if(_tourCleanup){_tourCleanup();_tourCleanup=null;}
+  if(_tourIdx>=TOUR_STEPS.length-1){endTutorial();return;}
+  _tourIdx++;
+  const step=TOUR_STEPS[_tourIdx];
+  if(step.tab)setTab(step.tab);
+  requestAnimationFrame(renderTourStep);
+}
+// Le tutoriel s'efface pendant qu'une vraie feuille (Importer, Réglages...) déclenchée par
+// l'utilisateur est ouverte, pour ne pas la recouvrir — et reprend dès qu'elle se ferme.
+function waitForSheetClose(cb){
+  const sheetEl=$('#sheet');
+  if(!sheetEl.classList.contains('show')){cb();return;}
+  const mo=new MutationObserver(()=>{
+    if(!sheetEl.classList.contains('show')){mo.disconnect();cb();}
+  });
+  mo.observe(sheetEl,{attributes:true,attributeFilter:['class']});
+}
+function positionTourHole(target){
+  const r=target.getBoundingClientRect(),pad=6;
+  const hole=$('#tour-hole');
+  hole.style.display='block';
+  hole.style.left=(r.left-pad)+'px';hole.style.top=(r.top-pad)+'px';
+  hole.style.width=(r.width+pad*2)+'px';hole.style.height=(r.height+pad*2)+'px';
+}
+function positionTourCard(card,target){
+  const r=target.getBoundingClientRect();
+  const vw=window.innerWidth,vh=window.innerHeight;
+  const w=Math.min(300,vw-32);
+  card.style.width=w+'px';
+  card.style.left=Math.min(Math.max(16,r.left+r.width/2-w/2),vw-w-16)+'px';
+  if(r.bottom+160<vh){card.style.top=(r.bottom+16)+'px';card.style.bottom='';}
+  else{card.style.bottom=(vh-r.top+16)+'px';card.style.top='';}
+}
+function renderTourStep(){
+  const step=TOUR_STEPS[_tourIdx];
+  const bg=$('#tour-bg'),hole=$('#tour-hole'),card=$('#tour-card');
+  const target=step.kind==='tap'?document.querySelector(step.sel):null;
+  card.innerHTML='';
+
+  const dots=el('div','tour-dots');
+  TOUR_STEPS.forEach((_,i)=>dots.appendChild(el('span','tour-dot'+(i===_tourIdx?' on':''))));
+
+  const isLast=_tourIdx===TOUR_STEPS.length-1;
+  const spotlight=!!target;
+  if(spotlight){
+    bg.style.display='none';
+    positionTourHole(target);
+    card.className='tour-card';
+    positionTourCard(card,target);
+  }else{
+    // Étape « center », ou cible introuvable (tutoriel rappelé sur un état différent) :
+    // repli sur une carte centrée, sans bloquer la progression.
+    bg.style.display='block';hole.style.display='none';
+    card.className='tour-card center';
+    card.style.width=Math.min(320,window.innerWidth-48)+'px';
+  }
+
+  if(step.icon)card.appendChild(el('div','ic',step.icon));
+  card.appendChild(el('h3',null,step.title));
+  card.appendChild(el('p',null,step.text));
+  card.appendChild(dots);
+
+  const foot=el('div','tour-foot');
+  const skip=el('button','tour-skip','Passer le tutoriel');skip.onclick=endTutorial;
+  foot.appendChild(skip);
+  if(spotlight){
+    foot.appendChild(el('div','tour-hint','👉 Tape le bouton en surbrillance'));
+  }else{
+    const next=el('button','btn btn-accent',isLast?'C’est parti':'Suivant');
+    next.onclick=isLast?endTutorial:nextTourStep;
+    foot.appendChild(next);
+  }
+  card.appendChild(foot);
+
+  if(spotlight){
+    const onTap=()=>{
+      bg.style.display='none';hole.style.display='none';card.style.display='none';
+      const resume=()=>{card.style.display='';nextTourStep();};
+      if(step.after==='sheet')waitForSheetClose(resume);
+      else setTimeout(resume,180);
+    };
+    target.addEventListener('click',onTap,{once:true});
+    _tourCleanup=()=>target.removeEventListener('click',onTap);
   }
 }
 
@@ -2681,7 +2765,7 @@ const _stb=$('#st-btn');if(_stb)_stb.onclick=stockQuickAdd;
 const _sti=$('#st-input');if(_sti)_sti.addEventListener('keydown',e=>{if(e.key==='Enter')stockQuickAdd();});
 $('#qa-input').addEventListener('keydown',e=>{if(e.key==='Enter')quickAdd();});
 $('#btn-settings').onclick=openSettings;
-$('#btn-help').onclick=openOnboard;
+$('#btn-help').onclick=openTutorial;
 $('#btn-import').onclick=()=>openImport();
 $('#btn-new').onclick=()=>openRecipeForm({});
 
@@ -2689,7 +2773,7 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Le service worker sert la coquille en réseau d'abord : un simple relancement de l'app
    suffit à récupérer la dernière version. Ce bloc gère en plus le cas où le service worker
    lui-même a changé : on propose alors un rechargement en un geste. */
-const APP_VERSION='1.10.0';
+const APP_VERSION='1.10.1';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -2760,7 +2844,7 @@ async function boot(){
   const m=shared.match(/https?:\/\/\S+/);
   if(m){setTab('recettes');openImportLink(m[0]);}
   else if(q.get('action')==='import'){setTab('recettes');openImport();}
-  else if(!settings.tutorialSeen){openOnboard();}
+  else if(!settings.tutorialSeen){openTutorial();}
   initServiceWorker();
   purgeTombstones().catch(()=>{});
   if(syncEnabled()){
