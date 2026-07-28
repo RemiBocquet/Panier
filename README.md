@@ -15,6 +15,10 @@ boutons de l'appli (onglets, Importer, Réglages...) directement dans l'écran n
 tape dessus pour avancer — pas de simple diaporama à lire passivement. Il reste accessible
 ensuite via le bouton **?** de la barre du haut.
 
+Après une mise à jour, une fenêtre **Nouveautés** résume ce qui a changé depuis ta dernière
+visite (`CHANGELOG` dans `index.html`, juste au-dessus d'`APP_VERSION`). Elle ne s'affiche
+jamais au tout premier lancement.
+
 ## Les trois façons d'ajouter une recette
 
 **Depuis un lien** — Recettes → Importer → Depuis un lien.
@@ -46,6 +50,12 @@ Certaines licences (CC-BY) demandent de créditer l'auteur — nom et licence af
 vignette — si la recette est republiée ailleurs.
 Seule l'URL de l'image choisie est conservée, comme pour une image importée depuis une recette web.
 
+### Partager une recette
+
+Le bouton **Partager la recette** (fiche recette) envoie ingrédients et préparation en texte via
+le partage natif du téléphone (SMS, WhatsApp, mail...) — pratique pour la transmettre à quelqu'un
+qui n'a pas l'app. Sans partage natif disponible, le texte est copié dans le presse-papiers.
+
 ## Fonctionnement des quantités
 
 Les ingrédients sont agrégés par nom + famille d'unité :
@@ -73,6 +83,10 @@ ingrédients déjà enregistrés : rien à ressaisir.
 
 - **Recherche** — porte sur le nom et les ingrédients : « poulet » trouve « Poulet basquaise »
   comme toute recette contenant du poulet. Insensible à la casse et aux accents.
+- **Favoris** — recettes marquées d'une étoile (bouton ☆ sur la fiche recette).
+- **Avec mon stock** — ne garde que les recettes dont tous les ingrédients sont déjà en stock.
+  Les basiques de placard non suivis individuellement (sel, farine, huile...) sont supposés
+  toujours disponibles et ne bloquent jamais ce filtre.
 - **Végétarien / Végan** — végan exclut en plus les produits laitiers, les œufs et le miel.
 - **Sans porc / Sans lactose / Sans gluten**
 - **≤ 5 ingrédients** — pour les soirs pressés.

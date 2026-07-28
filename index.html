@@ -153,6 +153,9 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .steps{counter-reset:s;margin:0;padding:0;list-style:none}
 .steps li{position:relative;padding:0 0 14px 34px;counter-increment:s;font-size:14.5px;color:#40382e}
 .steps li::before{content:counter(s);position:absolute;left:0;top:-1px;width:24px;height:24px;border-radius:50%;background:var(--pine);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+.changelog-list{margin:0 0 18px;padding-left:20px}
+.changelog-list li{font-size:14px;line-height:1.5;margin-bottom:7px;color:#40382e}
+.changelog-list li::marker{color:var(--pine)}
 .det-ings{list-style:none;margin:0 0 4px;padding:0}
 .det-ings li{display:flex;justify-content:space-between;gap:12px;padding:9px 2px;border-bottom:1px dashed var(--hair);font-size:14.5px}
 .det-ings li .q{color:var(--pine);font-weight:700;font-variant-numeric:tabular-nums;flex:none}
@@ -703,8 +706,21 @@ function recipeHasIngredient(r,q){
   if(!n)return false;
   return (r.ingredients||[]).some(i=>normIng(i.name).includes(n));
 }
+/* Ingrédients d'une recette absents du stock, en excluant les basiques de placard (non
+   périssables selon SHELF_LIFE : sel, farine, huile...) qu'on suppose toujours disponibles
+   même sans les suivre un par un. Sert au filtre « Avec mon stock ». */
+function recipeMissingFromStock(r){
+  return (r.ingredients||[]).filter(ing=>{
+    if(!ing.name||!ing.name.trim())return false;
+    if(findStock(ing.name))return false;
+    if(shelfLifeDays(ing.name)===null)return false;
+    return true;
+  });
+}
 
 const FILTER_TAGS=[
+  {id:'favoris',   label:'Favoris',    icon:'⭐'},
+  {id:'stock',     label:'Avec mon stock',icon:'🥫'},
   {id:'vege',      label:'Végétarien', icon:'🌱'},
   {id:'vegan',     label:'Végan',      icon:'🌿'},
   {id:'sansPorc',  label:'Sans porc',  icon:'🚫'},
@@ -725,6 +741,8 @@ function filterRecipes(list){
       for(const t of rFilter.tags){
         if(t==='rapide'){ if((r.ingredients||[]).length>5)return false; }
         else if(t==='nouveau'){ if(meals.some(m=>m.recipeId===r.id))return false; }
+        else if(t==='favoris'){ if(!r.favorite)return false; }
+        else if(t==='stock'){ if(recipeMissingFromStock(r).length>0)return false; }
         else if(!d[t])return false;
       }
     }
@@ -735,7 +753,7 @@ function filterActive(){return !!(rFilter.q||rFilter.excl||rFilter.src||rFilter.
 function resetFilter(){rFilter={q:'',excl:'',tags:new Set(),src:''};}
 
 /* État */
-let recipes=[],meals=[],shopping=[],stock=[],settings={id:'app',proxy:'',household:null,shelfOverrides:{}};
+let recipes=[],meals=[],shopping=[],stock=[],settings={id:'app',proxy:'',household:null,shelfOverrides:{},lastSeenVersion:null};
 const alive=a=>a.filter(r=>!r.deleted);
 async function loadAll(){
   recipes=alive(await dbGetAll('recipes'));
@@ -776,6 +794,13 @@ async function removeMeal(mealId){
   const m=meals.find(x=>x.id===mealId);
   // Repas validé : ce qui avait été prélevé dans le stock y retourne.
   if(m&&m.consumed&&m.consumed.length)await stockRestore(m.consumed);
+  meals=meals.filter(x=>x.id!==mealId);
+  await softDelete('meals',mealId);
+  await removeMealContributions(mealId);
+}
+/* Repas effectivement cuisiné : on le retire SANS restituer le stock consommé, puisqu'il a
+   vraiment été mangé contrairement à removeMeal. */
+async function finishMeal(mealId){
   meals=meals.filter(x=>x.id!==mealId);
   await softDelete('meals',mealId);
   await removeMealContributions(mealId);
@@ -1402,6 +1427,16 @@ function mealCard(m,dl){
     b.appendChild(badge);
     b.appendChild(el('div','dl-why','à cause de : '+dl.ingredient));
   }
+  let done=null;
+  if(mealStatus(m)==='validated'){
+    done=el('button','del');done.title='Marquer comme fait';
+    done.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5L19 7"/></svg>';
+    done.style.cssText='flex:none;color:var(--leaf);width:34px;height:34px;border-radius:9px;display:grid;place-items:center';
+    done.onclick=async()=>{
+      if(!confirm('Retirer ce repas maintenant qu’il est cuisiné ? Le stock déjà prélevé ne sera pas restitué.'))return;
+      await finishMeal(m.id);renderRepas();renderCourses();updateBadges();toast('Repas terminé');
+    };
+  }
   const del=el('button','del');del.innerHTML='<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
   del.style.cssText='flex:none;color:var(--muted);width:34px;height:34px;border-radius:9px;display:grid;place-items:center';
   del.onclick=async()=>{
@@ -1411,7 +1446,9 @@ function mealCard(m,dl){
     if(!confirm(msg))return;
     await removeMeal(m.id);renderRepas();renderCourses();updateBadges();toast('Repas retiré — courses mises à jour');
   };
-  card.appendChild(th);card.appendChild(b);card.appendChild(del);
+  card.appendChild(th);card.appendChild(b);
+  if(done)card.appendChild(done);
+  card.appendChild(del);
   card.onclick=e=>{if(e.target.closest('.del'))return;if(r)openRecipeDetail(r);};
   return card;
 }
@@ -1489,7 +1526,7 @@ function renderRepas(){
 function recipeCard(r){
   const card=el('div','rcard');const th=el('div','thumb');
   if(r.image)th.style.backgroundImage="url('"+r.image+"')";else th.textContent=r.name.charAt(0).toUpperCase();
-  const b=el('div','body');b.appendChild(el('div','title',r.name));
+  const b=el('div','body');b.appendChild(el('div','title',(r.favorite?'⭐ ':'')+r.name));
   const sub=el('div','sub');
   const d=dietFlags(r);
   let badges='';
@@ -1902,6 +1939,35 @@ function openServingsStep(recipe){
     c.appendChild(btn);
   });
 }
+/* ---------- Partage d'une recette en texte ----------
+   Pour envoyer une recette à quelqu'un qui n'a pas l'app (SMS, WhatsApp, mail...). Utilise
+   le partage natif du téléphone quand il existe, sinon copie dans le presse-papiers. */
+function recipeShareText(r){
+  const lines=[r.name];
+  if(r.servings)lines.push('Pour '+r.servings+' personne'+(r.servings>1?'s':''));
+  lines.push('','Ingrédients :');
+  (r.ingredients||[]).forEach(ing=>{
+    const q=ing.qty!=null?fmtQty(toBase(ing.qty,ing.unit),unitClass(ing.unit),ing.unit):'';
+    lines.push('- '+[q,ing.name].filter(Boolean).join(' '));
+  });
+  if((r.steps||[]).length){
+    lines.push('','Préparation :');
+    r.steps.forEach((s,i)=>lines.push((i+1)+'. '+s));
+  }
+  lines.push('','Envoyé depuis Panier');
+  return lines.join('\n');
+}
+async function shareRecipe(r){
+  const text=recipeShareText(r);
+  if(navigator.share){
+    try{await navigator.share({title:r.name,text});}
+    catch(e){/* annulé par l'utilisateur : rien à faire */}
+    return;
+  }
+  try{await navigator.clipboard.writeText(text);toast('Recette copiée dans le presse-papiers');}
+  catch(e){toast('Partage indisponible sur ce navigateur');}
+}
+
 function openRecipeDetail(r){
   openSheet(r.name,c=>{
     if(r.image){const im=el('div');im.style.cssText='height:150px;border-radius:14px;background:#eee center/cover no-repeat;margin-bottom:14px;box-shadow:var(--shadow)';im.style.backgroundImage="url('"+r.image+"')";c.appendChild(im);}
@@ -1914,9 +1980,23 @@ function openRecipeDetail(r){
     if(df.sansLactose)tags.push('🥛 sans lactose');
     if(tags.length)bits.push(tags.join(' &nbsp;·&nbsp; '));
     meta.innerHTML=bits.join(' &nbsp;·&nbsp; ');meta.style.marginBottom='14px';c.appendChild(meta);
-    const add=el('button','btn btn-accent btn-block');
+    const topRow=el('div');topRow.style.cssText='display:flex;gap:10px';
+    const add=el('button','btn btn-accent');add.style.flex='1';
     add.innerHTML='<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Ajouter aux repas';
-    add.onclick=()=>{closeSheet();openServingsStep(r);};c.appendChild(add);
+    add.onclick=()=>{closeSheet();openServingsStep(r);};topRow.appendChild(add);
+    const favBtn=el('button','btn btn-ghost');favBtn.style.cssText='flex:none;width:52px;padding:0';
+    const STAR_PATH='M12 2.5l2.9 6.6 7.1.6-5.4 4.6 1.7 7-6.3-3.9-6.3 3.9 1.7-7L2 9.7l7.1-.6z';
+    const syncFav=()=>{
+      favBtn.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" stroke-width="2" stroke-linejoin="round" fill="'+(r.favorite?'currentColor':'none')+'"><path d="'+STAR_PATH+'"/></svg>';
+      favBtn.style.color=r.favorite?'var(--saffron)':'var(--muted)';
+    };
+    favBtn.onclick=async()=>{
+      r.favorite=!r.favorite;await save('recipes',r);
+      const ix=recipes.findIndex(x=>x.id===r.id);if(ix>=0)recipes[ix]=r;
+      syncFav();refreshRecipeList();
+    };
+    syncFav();topRow.appendChild(favBtn);
+    c.appendChild(topRow);
     c.appendChild(sectionEyebrow('Ingrédients',(r.ingredients||[]).length));
     const ul=el('ul','det-ings');
     (r.ingredients||[]).forEach(ing=>{
@@ -1927,6 +2007,10 @@ function openRecipeDetail(r){
     if((r.ingredients||[]).length===0)ul.appendChild(el('div','hint','Aucun ingrédient. Modifie la recette pour en ajouter.'));
     c.appendChild(ul);
     if((r.steps||[]).length){c.appendChild(sectionEyebrow('Préparation',r.steps.length));const ol=el('ol','steps');r.steps.forEach(s=>ol.appendChild(el('li',null,s)));c.appendChild(ol);}
+    const share=el('button','btn btn-ghost btn-block');share.style.marginTop='4px';
+    share.innerHTML='<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-3.9M8.6 13.5l6.8 3.9"/></svg>Partager la recette';
+    share.onclick=()=>shareRecipe(r);
+    c.appendChild(share);
     const row=el('div','btn-row');
     const edit=el('button','btn btn-ghost btn-block','Modifier');edit.onclick=()=>openRecipeForm(r);row.appendChild(edit);
     if(r.source){const link=el('a','btn btn-ghost btn-block','Ouvrir la source');link.href=r.source;link.target='_blank';link.rel='noopener';row.appendChild(link);}
@@ -2201,7 +2285,8 @@ function openRecipeForm(recipe){
     sourceType:recipe.sourceType||'manual',
     ingredients:(recipe.ingredients||[]).map(i=>({qty:i.qty,unit:i.unit,name:i.name})),
     steps:(recipe.steps||[]).slice(),
-    createdAt:recipe.createdAt||Date.now()
+    createdAt:recipe.createdAt||Date.now(),
+    favorite:!!recipe.favorite
   };
   openSheet(isNew?'Nouvelle recette':'Modifier la recette',c=>{
     if(data.sourceType==='photo'){
@@ -2746,8 +2831,48 @@ $('#btn-help').onclick=openTutorial;
 $('#btn-import').onclick=()=>openImport();
 $('#btn-new').onclick=()=>openRecipeForm({});
 
+/* ---------- Nouveautés ----------
+   Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
+   version courante), jamais au tout premier lancement — qui a déjà son tutoriel. Chaque
+   entrée à ajouter juste au-dessus lors d'une prochaine mise à jour de version. */
+const CHANGELOG=[
+  {version:'2.0.0',date:'2026-07-28',items:[
+    'Nouveau : cette fenêtre « Nouveautés », affichée après chaque mise à jour pour résumer ce qui a changé.',
+    'Nouveau : recettes favorites (⭐), filtrables comme les autres tags.',
+    'Nouveau : filtre « Avec mon stock », pour ne voir que les recettes réalisables avec ce que tu as déjà.',
+    'Nouveau : partager une recette en texte (SMS, WhatsApp, mail...).',
+    'Nouveau : marquer un repas comme fait pour le retirer sans réintégrer le stock consommé.',
+    'Correction : la sauvegarde JSON (export/import) oubliait le stock.',
+    'Correction : « Tout effacer » ne vidait pas le stock affiché à l’écran.',
+    'Sécurité : confirmation ajoutée avant de retirer un repas.',
+  ]},
+];
+function compareVersions(a,b){
+  const pa=String(a||'0').split('.').map(Number),pb=String(b||'0').split('.').map(Number);
+  for(let i=0;i<Math.max(pa.length,pb.length);i++){
+    const d=(pa[i]||0)-(pb[i]||0);
+    if(d)return d;
+  }
+  return 0;
+}
+function openChangelog(prevVersion){
+  const entries=CHANGELOG.filter(e=>compareVersions(e.version,prevVersion)>0);
+  if(!entries.length)return;
+  openSheet('Nouveautés',c=>{
+    entries.forEach(e=>{
+      c.appendChild(sectionEyebrow('Version '+e.version,e.date||''));
+      const ul=el('ul','changelog-list');
+      e.items.forEach(t=>ul.appendChild(el('li',null,t)));
+      c.appendChild(ul);
+    });
+    const ok=el('button','btn btn-accent btn-block','Compris');
+    ok.onclick=closeSheet;
+    c.appendChild(ok);
+  });
+}
+
 /* Mises à jour de l'application */
-const APP_VERSION='1.10.3';
+const APP_VERSION='2.0.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -2827,6 +2952,16 @@ async function boot(){
   await openDB();await loadAll();renderAll();
   const q=new URLSearchParams(location.search);
   const t=q.get('tab');if(t&&TITLES[t])setTab(t);
+
+  // Suivi de version pour les Nouveautés : mis à jour immédiatement, indépendamment de
+  // l'affichage de la fenêtre (décidé plus bas, en concurrence avec les autres écrans
+  // d'accueil). Absent (première installation) => pas de fenêtre, juste une référence posée.
+  const prevVersion=settings.lastSeenVersion;
+  if(prevVersion!==APP_VERSION){
+    settings.lastSeenVersion=APP_VERSION;settings.id='app';
+    dbPut('settings',settings).catch(()=>{});
+  }
+
   // Partage entrant (share_target) : une URL partagée ouvre l'import pré-rempli.
   const shared=q.get('shared')||q.get('text')||'';
   const m=shared.match(/https?:\/\/\S+/);
@@ -2834,6 +2969,7 @@ async function boot(){
   else if(q.get('action')==='import'){setTab('recettes');openImport();}
   else if(q.get('syncSecret')){await applySyncCodeFromUrl(q);}
   else if(!settings.tutorialSeen){openTutorial();}
+  else if(prevVersion&&compareVersions(APP_VERSION,prevVersion)>0){openChangelog(prevVersion);}
   initServiceWorker();
   purgeTombstones().catch(()=>{});
   if(syncEnabled()){
