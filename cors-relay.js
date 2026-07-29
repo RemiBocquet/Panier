@@ -3,8 +3,6 @@
  *
  * Le navigateur ne peut pas lire marmiton.org directement (CORS).
  * Ce Worker récupère la page côté serveur et la renvoie avec les en-têtes CORS.
- *
- * Usage : GET https://<worker>/?url=<url-encodée>
  */
 
 const ALLOWED_HOSTS = [
@@ -32,6 +30,11 @@ export default {
     const path = new URL(request.url).pathname;
     if (path === '/sync' || path === '/sync/') {
       return handleSync(request, env);
+    }
+
+    // ---- Signaler un bug / proposer une idée ----
+    if (path === '/feedback' || path === '/feedback/') {
+      return handleFeedback(request, env);
     }
 
     const { searchParams } = new URL(request.url);
@@ -166,4 +169,60 @@ async function handleSync(request, env) {
   }
 
   return json({ error: 'Méthode non autorisée.' }, 405);
+}
+
+/*
+   Signaler un bug / proposer une idée
+   
+   Envoie le message par email via l'API Resend.
+*/
+const FEEDBACK_TO = 'panier.repas.courses@gmail.com';
+const FEEDBACK_MAX_LEN = 5000;
+
+async function handleFeedback(request, env) {
+  if (request.method !== 'POST') return json({ error: 'Méthode non autorisée.' }, 405);
+  if (!env || !env.RESEND_API_KEY) {
+    return json({ error: "Envoi automatique non configuré côté serveur (clé RESEND_API_KEY absente)." }, 500);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'JSON invalide.' }, 400);
+  }
+
+  const kind = body && body.kind === 'idea' ? 'idea' : 'bug';
+  const message = String((body && body.message) || '').trim().slice(0, FEEDBACK_MAX_LEN);
+  if (!message) return json({ error: 'Message vide.' }, 400);
+  const version = String((body && body.version) || '').slice(0, 40);
+  const userAgent = String((body && body.userAgent) || '').slice(0, 300);
+
+  const subject = '[Panier] ' + (kind === 'idea' ? 'Suggestion' : 'Bug signalé');
+  const text = message
+    + '\n\n—\nVersion : ' + version
+    + '\nAppareil : ' + userAgent
+    + '\nDate : ' + new Date().toISOString();
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + env.RESEND_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Panier <onboarding@resend.dev>',
+        to: env.FEEDBACK_TO || FEEDBACK_TO,
+        subject,
+        text,
+      }),
+    });
+    if (!res.ok) {
+      return json({ error: 'Échec de l’envoi (' + res.status + ').' }, 502);
+    }
+    return json({ ok: true });
+  } catch (err) {
+    return json({ error: 'Échec de l’envoi : ' + err.message }, 502);
+  }
 }

@@ -2518,6 +2518,63 @@ function openSyncQr(secret){
   });
 }
 
+/* Signaler un bug / proposer une idée
+   Envoi automatique et silencieux via le relais (Resend). Si le relais
+   n'est pas configuré ou injoignable, repli sur l'appli mail du téléphone (mailto:).
+   Version et appareil joints automatiquement dans les deux cas, pour faciliter le diagnostic. */
+const FEEDBACK_EMAIL='panier.repas.courses@gmail.com';
+function openFeedback(){
+  let kind='bug';
+  openSheet('Signaler un bug ou proposer une idée',c=>{
+    const hint=el('div','hint');
+    hint.textContent='Quelques infos techniques (version, appareil) seront jointes automatiquement pour aider au diagnostic.';
+    hint.style.marginBottom='12px';c.appendChild(hint);
+
+    const chips=el('div','fchips');chips.style.marginBottom='12px';
+    const bugChip=el('button','fchip');bugChip.innerHTML='<span>🐛</span>Bug';
+    const ideaChip=el('button','fchip');ideaChip.innerHTML='<span>💡</span>Amélioration';
+    chips.appendChild(bugChip);chips.appendChild(ideaChip);c.appendChild(chips);
+
+    const f=el('div','field');f.innerHTML='<label>Ton message</label>';
+    const ta=el('textarea');
+    f.appendChild(ta);c.appendChild(f);
+
+    const sync=()=>{
+      bugChip.classList.toggle('on',kind==='bug');
+      ideaChip.classList.toggle('on',kind==='idea');
+      ta.placeholder=kind==='bug'?'Que s’est-il passé ? Que faisais-tu juste avant ?':'Quelle amélioration aimerais-tu voir ?';
+    };
+    bugChip.onclick=()=>{kind='bug';sync();};
+    ideaChip.onclick=()=>{kind='idea';sync();};
+    sync();
+
+    const send=el('button','btn btn-accent btn-block','Envoyer');
+    send.onclick=async()=>{
+      const msg=ta.value.trim();
+      if(!msg){toast('Écris un message d’abord');return;}
+      send.disabled=true;send.innerHTML='<span class="spin"></span> Envoi…';
+      // Envoi automatique via le relais (Resend) si configuré ; sinon, repli sur l'appli
+      // mail du téléphone, le message n'est jamais perdu, juste moins automatique.
+      try{
+        const r=await fetch(relayBase()+'/feedback',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({kind,message:msg,version:APP_VERSION,userAgent:navigator.userAgent})
+        });
+        if(!r.ok)throw new Error('relais indisponible');
+        closeSheet();toast('Message envoyé — merci !');
+        return;
+      }catch(e){
+        const subject='[Panier] '+(kind==='bug'?'Bug signalé':'Suggestion');
+        const infos='\n\n—\nVersion : '+APP_VERSION+'\nAppareil : '+navigator.userAgent+'\nDate : '+new Date().toLocaleString('fr-FR');
+        location.href='mailto:'+FEEDBACK_EMAIL+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(msg+infos);
+      }finally{
+        send.disabled=false;send.textContent='Envoyer';
+      }
+    };
+    c.appendChild(send);
+  });
+}
+
 /* Réglages */
 function openSettings(){
   openSheet('Réglages',c=>{
@@ -2634,8 +2691,12 @@ function openSettings(){
     c.appendChild(upd);
     const uh=el('div','hint');
     uh.textContent='L’app se met à jour toute seule au lancement quand tu es connecté. Ce bouton force la vérification.';
-    uh.style.marginBottom='4px';
+    uh.style.marginBottom='12px';
     c.appendChild(uh);
+    const fb=el('button','btn btn-ghost btn-block','🐛 Signaler un bug / proposer une idée');
+    fb.style.marginBottom='8px';
+    fb.onclick=openFeedback;
+    c.appendChild(fb);
 
     c.appendChild(sectionEyebrow('Données',recipes.length+meals.length+shopping.length+stock.length));
     const stat=el('div','hint');
@@ -2835,6 +2896,9 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
    version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'2.1.0',date:'2026-07-29',items:[
+    'Nouveau : bouton « Signaler un bug / proposer une idée » dans les Réglages.',
+  ]},
   {version:'2.0.1',date:'2026-07-28',items:[
     'Ajustement : icône plus parlante (assiette fumante) sur le bouton « Marquer comme fait » d’un repas cuisiné.',
   ]},
@@ -2874,7 +2938,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='2.0.1';
+const APP_VERSION='2.1.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){

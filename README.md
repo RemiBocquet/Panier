@@ -230,3 +230,22 @@ continue de fonctionner : les changements partent à la reconnexion.
 
 Réglages → Exporter : un fichier JSON avec tout (recettes, repas, courses, réglages).
 Réglages → Importer : restaure. Pratique pour changer de téléphone, puisque rien n'est dans le cloud.
+
+## Signaler un bug ou proposer une idée
+
+Réglages → **🐛 Signaler un bug / proposer une idée** : un message vers
+`panier.repas.courses@gmail.com`, avec version de l'app, appareil et date joints
+automatiquement.
+
+L'envoi est **silencieux et automatique** via le relais (Cloudflare Worker, endpoint
+`/feedback` de `cors-relay.js`), qui passe par [Resend](https://resend.com) — gratuit jusqu'à
+3000 emails/mois, sans domaine à configurer pour cet usage. Si Resend n'est pas configuré
+(clé absente) ou injoignable, l'app **retombe automatiquement** sur l'appli mail du téléphone
+(`mailto:`) : le message n'est jamais perdu, juste moins automatique.
+
+Mise en place du côté serveur (facultative, une seule fois) :
+1. Crée un compte sur [resend.com](https://resend.com) avec l'adresse qui doit recevoir les
+   messages (ex. `panier.repas.courses@gmail.com`).
+2. Dashboard → API Keys → crée une clé.
+3. Sur ton Worker Cloudflare : Settings → Variables → ajoute un **secret** nommé
+   `RESEND_API_KEY` (ou `wrangler secret put RESEND_API_KEY`).
