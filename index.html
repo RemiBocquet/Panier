@@ -2896,6 +2896,9 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
    version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'2.1.1',date:'2026-07-29',items:[
+    'Correction : le bandeau « Nouvelle version » pouvait cacher le bas de la fenêtre Nouveautés au lancement — il attend maintenant qu’elle se ferme.',
+  ]},
   {version:'2.1.0',date:'2026-07-29',items:[
     'Nouveau : bouton « Signaler un bug / proposer une idée » dans les Réglages.',
   ]},
@@ -2938,10 +2941,16 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='2.1.0';
+const APP_VERSION='2.1.1';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
+  // Le bandeau (élément .toast, z-index élevé) passerait au-dessus d'une feuille ouverte
+  // (ex. les Nouveautés au lancement) et en cacherait le bas. On attend qu'elle se ferme.
+  if($('#sheet').classList.contains('show')){
+    waitForSheetClose(()=>showUpdateBanner(worker));
+    return;
+  }
   const t=$('#toast');
   t.textContent='Nouvelle version — appuyer pour recharger';
   t.style.pointerEvents='auto';
