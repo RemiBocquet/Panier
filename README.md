@@ -56,6 +56,12 @@ Le bouton **Partager la recette** (fiche recette) envoie ingrédients et prépar
 le partage natif du téléphone (SMS, WhatsApp, mail...) — pratique pour la transmettre à quelqu'un
 qui n'a pas l'app. Sans partage natif disponible, le texte est copié dans le presse-papiers.
 
+### Note personnelle
+
+Chaque recette peut avoir une note libre (astuces, ajustements, avis...), affichée en encart sur
+la fiche recette. Distincte du contenu de la recette : elle ne se modifie que depuis son propre
+petit écran, pas dans le formulaire « Modifier ».
+
 ## Fonctionnement des quantités
 
 Les ingrédients sont agrégés par nom + famille d'unité :

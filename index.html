@@ -117,6 +117,9 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 #tour-bg{position:fixed;inset:0;background:var(--paper);display:none;pointer-events:auto}
 #tour-hole{position:fixed;display:none;border-radius:14px;pointer-events:none;
   box-shadow:0 0 0 9999px rgba(20,16,12,.72);transition:left .25s,top .25s,width .25s,height .25s}
+/* Le halo (#tour-hole) n'est que visuel : sans ces 4 bandes, tout l'écran assombri reste
+   cliquable et déclenche de vraies actions ailleurs que sur le bouton mis en avant. */
+.tour-mask{position:fixed;display:none;pointer-events:auto;background:transparent}
 .tour-card{position:fixed;z-index:81;background:var(--card);border-radius:16px;box-shadow:var(--shadow-lg);
   padding:16px 18px;pointer-events:auto;transition:left .25s,top .25s,bottom .25s}
 .tour-card.center{left:50%!important;top:50%!important;bottom:auto!important;transform:translate(-50%,-50%);text-align:center;padding:26px 22px}
@@ -156,6 +159,9 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .changelog-list{margin:0 0 18px;padding-left:20px}
 .changelog-list li{font-size:14px;line-height:1.5;margin-bottom:7px;color:#40382e}
 .changelog-list li::marker{color:var(--pine)}
+.note-box{background:#fdf6e3;border-radius:12px;padding:13px 14px;margin-bottom:4px}
+.note-text{font-size:14px;line-height:1.5;color:#5a4a1f;white-space:pre-wrap}
+.note-edit{margin-top:9px;font-size:12.5px;font-weight:700;color:var(--pine)}
 .det-ings{list-style:none;margin:0 0 4px;padding:0}
 .det-ings li{display:flex;justify-content:space-between;gap:12px;padding:9px 2px;border-bottom:1px dashed var(--hair);font-size:14.5px}
 .det-ings li .q{color:var(--pine);font-weight:700;font-variant-numeric:tabular-nums;flex:none}
@@ -288,6 +294,10 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 <div id="tour">
   <div id="tour-bg"></div>
   <div id="tour-hole"></div>
+  <div class="tour-mask" id="tour-mask-t"></div>
+  <div class="tour-mask" id="tour-mask-b"></div>
+  <div class="tour-mask" id="tour-mask-l"></div>
+  <div class="tour-mask" id="tour-mask-r"></div>
   <div class="tour-card" id="tour-card"></div>
 </div>
 
@@ -1971,6 +1981,38 @@ async function shareRecipe(r){
   catch(e){toast('Partage indisponible sur ce navigateur');}
 }
 
+/* Note personnelle sur une recette : astuces, ajustements, avis... Distincte du contenu de
+   la recette elle-même (ingrédients/étapes) — éditable uniquement depuis cette mini-feuille,
+   pas dans le formulaire "Modifier", pour ne pas mélanger contenu de la recette et annotation
+   perso. Comme pour "favorite", le champ est tout de même préservé par openRecipeForm quand
+   on modifie la recette par ailleurs (sans quoi il serait silencieusement effacé). */
+function openNoteEditor(r,onSaved){
+  openSheet('Note personnelle',c=>{
+    const f=el('div','field');
+    f.innerHTML='<label>Astuces, ajustements, avis...</label>';
+    const ta=el('textarea');ta.value=r.notes||'';ta.style.minHeight='140px';
+    ta.placeholder='ex. Mettre moitié moins de sel. Les enfants ont adoré.';
+    f.appendChild(ta);c.appendChild(f);
+    const saveBtn=el('button','btn btn-primary btn-block','Enregistrer');
+    saveBtn.onclick=async()=>{
+      r.notes=ta.value.trim();
+      await save('recipes',r);
+      const ix=recipes.findIndex(x=>x.id===r.id);if(ix>=0)recipes[ix]=r;
+      closeSheet();onSaved();
+    };
+    c.appendChild(saveBtn);
+    if(r.notes){
+      const rm=el('button','btn btn-danger btn-block','Supprimer la note');rm.style.marginTop='8px';
+      rm.onclick=async()=>{
+        r.notes='';await save('recipes',r);
+        const ix=recipes.findIndex(x=>x.id===r.id);if(ix>=0)recipes[ix]=r;
+        closeSheet();onSaved();
+      };
+      c.appendChild(rm);
+    }
+  });
+}
+
 function openRecipeDetail(r){
   openSheet(r.name,c=>{
     if(r.image){const im=el('div');im.style.cssText='height:150px;border-radius:14px;background:#eee center/cover no-repeat;margin-bottom:14px;box-shadow:var(--shadow)';im.style.backgroundImage="url('"+r.image+"')";c.appendChild(im);}
@@ -2010,6 +2052,27 @@ function openRecipeDetail(r){
     if((r.ingredients||[]).length===0)ul.appendChild(el('div','hint','Aucun ingrédient. Modifie la recette pour en ajouter.'));
     c.appendChild(ul);
     if((r.steps||[]).length){c.appendChild(sectionEyebrow('Préparation',r.steps.length));const ol=el('ol','steps');r.steps.forEach(s=>ol.appendChild(el('li',null,s)));c.appendChild(ol);}
+
+    const notesWrap=el('div');notesWrap.style.marginBottom='4px';
+    const renderNotes=()=>{
+      notesWrap.innerHTML='';
+      if(r.notes){
+        const box=el('div','note-box');
+        box.appendChild(el('div','note-text',r.notes));
+        const ed=el('button','note-edit','✏️ Modifier ma note');
+        ed.onclick=()=>openNoteEditor(r,renderNotes);
+        box.appendChild(ed);
+        notesWrap.appendChild(box);
+      }else{
+        const add=el('button','btn btn-ghost btn-block');
+        add.innerHTML='<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Ajouter une note personnelle';
+        add.onclick=()=>openNoteEditor(r,renderNotes);
+        notesWrap.appendChild(add);
+      }
+    };
+    renderNotes();
+    c.appendChild(notesWrap);
+
     const share=el('button','btn btn-ghost btn-block');share.style.marginTop='4px';
     share.innerHTML='<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-3.9M8.6 13.5l6.8 3.9"/></svg>Partager la recette';
     share.onclick=()=>shareRecipe(r);
@@ -2289,7 +2352,8 @@ function openRecipeForm(recipe){
     ingredients:(recipe.ingredients||[]).map(i=>({qty:i.qty,unit:i.unit,name:i.name})),
     steps:(recipe.steps||[]).slice(),
     createdAt:recipe.createdAt||Date.now(),
-    favorite:!!recipe.favorite
+    favorite:!!recipe.favorite,
+    notes:recipe.notes||''
   };
   openSheet(isNew?'Nouvelle recette':'Modifier la recette',c=>{
     if(data.sourceType==='photo'){
@@ -2786,10 +2850,14 @@ function openTutorial(){
   document.body.style.overflow='hidden';
   renderTourStep();
 }
+function hideTourOverlay(){
+  $('#tour-bg').style.display='none';$('#tour-hole').style.display='none';
+  ['t','b','l','r'].forEach(k=>{$('#tour-mask-'+k).style.display='none';});
+}
 function endTutorial(){
   if(_tourCleanup){_tourCleanup();_tourCleanup=null;}
   $('#tour').classList.remove('show');
-  $('#tour-bg').style.display='none';$('#tour-hole').style.display='none';
+  hideTourOverlay();
   document.body.style.overflow='';
   if(!settings.tutorialSeen){
     settings.tutorialSeen=true;settings.id='app';
@@ -2816,10 +2884,20 @@ function waitForSheetClose(cb){
 }
 function positionTourHole(target){
   const r=target.getBoundingClientRect(),pad=6;
+  const hx=r.left-pad,hy=r.top-pad,hw=r.width+pad*2,hh=r.height+pad*2;
   const hole=$('#tour-hole');
   hole.style.display='block';
-  hole.style.left=(r.left-pad)+'px';hole.style.top=(r.top-pad)+'px';
-  hole.style.width=(r.width+pad*2)+'px';hole.style.height=(r.height+pad*2)+'px';
+  hole.style.left=hx+'px';hole.style.top=hy+'px';
+  hole.style.width=hw+'px';hole.style.height=hh+'px';
+
+  // Le halo n'est que visuel (pointer-events:none) : ces 4 bandes bloquent réellement les
+  // clics partout SAUF sur le bouton encadré, qui reste seul cliquable dans cette zone.
+  const vw=window.innerWidth,vh=window.innerHeight;
+  const mt=$('#tour-mask-t'),mb=$('#tour-mask-b'),ml=$('#tour-mask-l'),mr=$('#tour-mask-r');
+  mt.style.cssText='display:block;left:0;top:0;width:'+vw+'px;height:'+Math.max(0,hy)+'px';
+  mb.style.cssText='display:block;left:0;top:'+(hy+hh)+'px;width:'+vw+'px;height:'+Math.max(0,vh-(hy+hh))+'px';
+  ml.style.cssText='display:block;left:0;top:'+hy+'px;width:'+Math.max(0,hx)+'px;height:'+hh+'px';
+  mr.style.cssText='display:block;left:'+(hx+hw)+'px;top:'+hy+'px;width:'+Math.max(0,vw-(hx+hw))+'px;height:'+hh+'px';
 }
 function positionTourCard(card,target){
   const r=target.getBoundingClientRect();
@@ -2849,7 +2927,9 @@ function renderTourStep(){
   }else{
     // Étape « center », ou cible introuvable (tutoriel rappelé sur un état différent) :
     // repli sur une carte centrée, sans bloquer la progression.
-    bg.style.display='block';hole.style.display='none';
+    bg.style.display='block';
+    ['t','b','l','r'].forEach(k=>{$('#tour-mask-'+k).style.display='none';});
+    hole.style.display='none';
     card.className='tour-card center';
     card.style.width=Math.min(320,window.innerWidth-48)+'px';
   }
@@ -2873,7 +2953,7 @@ function renderTourStep(){
 
   if(spotlight){
     const onTap=()=>{
-      bg.style.display='none';hole.style.display='none';card.style.display='none';
+      hideTourOverlay();card.style.display='none';
       const resume=()=>{card.style.display='';nextTourStep();};
       if(step.after==='sheet')waitForSheetClose(resume);
       else setTimeout(resume,180);
@@ -2900,6 +2980,10 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
    version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'2.2.0',date:'2026-07-29',items:[
+    'Nouveau : note personnelle sur chaque recette (astuces, ajustements, avis...).',
+    'Correction : pendant le tutoriel, on pouvait taper en dehors du bouton mis en avant et déclencher de vraies actions par erreur.',
+  ]},
   {version:'2.1.2',date:'2026-07-29',items:[
     'Ajustement : bouton « Signaler un bug / proposer une idée » ajouté directement dans la barre du haut, en plus des Réglages.',
   ]},
@@ -2948,7 +3032,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='2.1.2';
+const APP_VERSION='2.2.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -2968,8 +3052,8 @@ function showUpdateBanner(worker){
     if(worker)worker.postMessage('SKIP_WAITING');
     setTimeout(()=>{if(!_reloading){_reloading=true;location.reload();}},400);
   };
-  // Le bandeau reste 12 s, puis s'efface : la mise à jour s'appliquera au prochain lancement.
-  toast._t=setTimeout(()=>{t.onclick=null;t.style.pointerEvents='';t.classList.remove('show');},12000);
+  // Le bandeau reste 5 s, puis s'efface : la mise à jour s'appliquera au prochain lancement.
+  toast._t=setTimeout(()=>{t.onclick=null;t.style.pointerEvents='';t.classList.remove('show');},5000);
 }
 
 function watchForUpdate(reg){

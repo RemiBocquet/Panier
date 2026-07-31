@@ -1,5 +1,5 @@
 // Panier — service worker
-const VERSION = 'panier-v2.1.2';
+const VERSION = 'panier-v2.2.0';
 const SHELL_CACHE = 'panier-shell-' + VERSION;
 const STATIC_CACHE = 'panier-static-v1';
 const CDN_CACHE = 'panier-cdn-v1';
