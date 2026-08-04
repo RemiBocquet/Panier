@@ -2663,13 +2663,21 @@ async function shareRecipesAsFile(list){
     }))};
   const json=JSON.stringify(payload,null,2);
   const filename='panier-recettes-'+list.length+'.json';
-  const file=new File([json],filename,{type:'application/json'});
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
-    try{await navigator.share({files:[file],title:'Mes recettes Panier'});}catch(e){/* annulé par l’utilisateur */}
-    return;
+  const n=list.length;
+  // navigator.canShare peut lever une exception plutôt que renvoyer false selon les
+  // navigateurs : tout est protégé, avec repli systématique sur le téléchargement.
+  try{
+    const file=new File([json],filename,{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'Mes recettes Panier'});
+      return;
+    }
+  }catch(e){
+    if(e&&e.name==='AbortError')return; // partage annulé par l’utilisateur : rien à faire
   }
   const blob=new Blob([json],{type:'application/json'});
   const a=el('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+  toast(n+' recette'+(n>1?'s':'')+' exportée'+(n>1?'s':'')+' — fichier téléchargé');
 }
 function openRecipeShareSelect(){
   if(!recipes.length){toast('Aucune recette à partager');return;}
@@ -3112,6 +3120,9 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
    version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'2.3.1',date:'2026-07-29',items:[
+    'Correction : le bouton « Partager » de la sélection de recettes pouvait ne rien faire sur certains navigateurs.',
+  ]},
   {version:'2.3.0',date:'2026-07-29',items:[
     'Nouveau : partager ses recettes avec quelqu’un d’autre (Réglages → Partager mes recettes), avec une sélection au cas par cas ; l’import chez le destinataire ajoute les recettes reçues sans rien remplacer.',
     'Nouveau : étape du tutoriel pour signaler un bug ou proposer une idée.',
@@ -3168,7 +3179,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='2.3.0';
+const APP_VERSION='2.3.1';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
