@@ -162,6 +162,12 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 .note-box{background:#fdf6e3;border-radius:12px;padding:13px 14px;margin-bottom:4px}
 .note-text{font-size:14px;line-height:1.5;color:#5a4a1f;white-space:pre-wrap}
 .note-edit{margin-top:9px;font-size:12.5px;font-weight:700;color:var(--pine)}
+.srow{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--hair);cursor:pointer}
+.srow .chk{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--hair);display:grid;place-items:center;transition:.15s}
+.srow .chk svg{width:14px;height:14px;stroke:#fff;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:0;transform:scale(.4);transition:.15s}
+.srow.on .chk{background:var(--pine);border-color:var(--pine)}
+.srow.on .chk svg{opacity:1;transform:none}
+.srow .t{flex:1;font-weight:600;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .det-ings{list-style:none;margin:0 0 4px;padding:0}
 .det-ings li{display:flex;justify-content:space-between;gap:12px;padding:9px 2px;border-bottom:1px dashed var(--hair);font-size:14.5px}
 .det-ings li .q{color:var(--pine);font-weight:700;font-variant-numeric:tabular-nums;flex:none}
@@ -2642,6 +2648,85 @@ function openFeedback(){
   });
 }
 
+/* Partage sélectif de recettes
+   Contenu objectif uniquement, navigator.share avec fichier si dispo sinon téléchargement
+   Même repli que pour le partage d'une recette individuelle. */
+async function shareRecipesAsFile(list){
+  if(!list.length){toast('Choisis au moins une recette');return;}
+  const payload={_kind:'panier-recipes',_v:1,_date:new Date().toISOString(),
+    recipes:list.map(r=>({
+      name:r.name,image:r.image||'',servings:r.servings||null,
+      cook:r.cook||null,prep:r.prep||null,
+      source:r.source||'',sourceType:r.sourceType||'manual',
+      ingredients:(r.ingredients||[]).map(i=>({qty:i.qty,unit:i.unit,name:i.name})),
+      steps:(r.steps||[]).slice()
+    }))};
+  const json=JSON.stringify(payload,null,2);
+  const filename='panier-recettes-'+list.length+'.json';
+  const file=new File([json],filename,{type:'application/json'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:'Mes recettes Panier'});}catch(e){/* annulé par l’utilisateur */}
+    return;
+  }
+  const blob=new Blob([json],{type:'application/json'});
+  const a=el('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+}
+function openRecipeShareSelect(){
+  if(!recipes.length){toast('Aucune recette à partager');return;}
+  const selected=new Set(recipes.map(r=>r.id));
+  const sorted=recipes.slice().sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  openSheet('Choisir les recettes à partager',c=>{
+    const se=el('div','fsearch');se.style.marginBottom='10px';
+    se.innerHTML='<svg class="mag" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+    const inp=el('input');inp.type='search';inp.placeholder='Filtrer par nom…';inp.autocomplete='off';
+    se.appendChild(inp);c.appendChild(se);
+
+    const bar=el('div');bar.style.cssText='display:flex;justify-content:space-between;align-items:center;margin:0 2px 8px';
+    const countEl=el('div','hint');
+    const allBtn=el('button');allBtn.style.cssText='color:var(--pine);font-weight:700;font-size:13px';
+    bar.appendChild(countEl);bar.appendChild(allBtn);c.appendChild(bar);
+
+    const list=el('div');c.appendChild(list);
+    const shareBtn=el('button','btn btn-accent btn-block');shareBtn.style.marginTop='14px';
+    shareBtn.onclick=()=>{closeSheet();shareRecipesAsFile(recipes.filter(r=>selected.has(r.id)));};
+
+    function syncBar(){
+      const n=selected.size;
+      countEl.textContent=n+' recette'+(n>1?'s':'')+' sélectionnée'+(n>1?'s':'');
+      allBtn.textContent=n>=recipes.length?'Tout désélectionner':'Tout sélectionner';
+      shareBtn.textContent='Partager'+(n?' ('+n+')':'');
+      shareBtn.disabled=n===0;
+    }
+    allBtn.onclick=()=>{
+      if(selected.size>=recipes.length)selected.clear();
+      else recipes.forEach(r=>selected.add(r.id));
+      draw();
+    };
+
+    function draw(){
+      list.innerHTML='';
+      const q=normIng(inp.value);
+      const shown=q?sorted.filter(r=>normIng(r.name).includes(q)):sorted;
+      shown.forEach(r=>{
+        const row=el('div','srow'+(selected.has(r.id)?' on':''));
+        const chk=el('div','chk');chk.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5L19 7"/></svg>';
+        row.appendChild(chk);row.appendChild(el('div','t',r.name));
+        row.onclick=()=>{
+          if(selected.has(r.id))selected.delete(r.id);else selected.add(r.id);
+          row.classList.toggle('on',selected.has(r.id));
+          syncBar();
+        };
+        list.appendChild(row);
+      });
+      if(!shown.length)list.appendChild(el('div','hint','Aucune recette ne correspond.'));
+      syncBar();
+    }
+    inp.oninput=draw;
+    draw();
+    c.appendChild(shareBtn);
+  });
+}
+
 /* Réglages */
 function openSettings(){
   openSheet('Réglages',c=>{
@@ -2811,6 +2896,51 @@ function openSettings(){
     };
     impLbl.appendChild(fi);c.appendChild(impLbl);
 
+    c.appendChild(sectionEyebrow('Partager des recettes',recipes.length+' recette'+(recipes.length>1?'s':'')));
+    const shareHint=el('div','hint');
+    shareHint.textContent='Choisis les recettes à envoyer à quelqu’un d’autre. Contrairement à la sauvegarde ci-dessus, l’import qui suit AJOUTE les recettes reçues aux siennes sans rien remplacer ni supprimer.';
+    shareHint.style.marginBottom='10px';c.appendChild(shareHint);
+
+    const shareBtn=el('button','btn btn-ghost btn-block','Partager mes recettes');
+    shareBtn.style.marginBottom='8px';
+    shareBtn.onclick=()=>{closeSheet();openRecipeShareSelect();};
+    c.appendChild(shareBtn);
+
+    const impRecLbl=el('label','btn btn-ghost btn-block');impRecLbl.textContent='Importer des recettes partagées';impRecLbl.style.marginBottom='8px';
+    const fiRec=el('input');fiRec.type='file';fiRec.accept='application/json';fiRec.style.display='none';
+    fiRec.onchange=async()=>{
+      const file=fiRec.files&&fiRec.files[0];if(!file)return;
+      try{
+        const d=JSON.parse(await file.text());
+        const incoming=Array.isArray(d)?d:(Array.isArray(d&&d.recipes)?d.recipes:null);
+        if(!incoming)throw new Error('structure');
+        // Ajout pur : aucune suppression, et on évite les doublons par nom plutôt que par id,
+        // puisque les id n'ont aucun sens d'un appareil à l'autre.
+        const existingNames=new Set(recipes.map(r=>normIng(r.name)));
+        let added=0,skipped=0;
+        for(const rec of incoming){
+          const name=rec&&rec.name?String(rec.name).trim():'';
+          if(!name)continue;
+          const key=normIng(name);
+          if(existingNames.has(key)){skipped++;continue;}
+          const nr={
+            id:uid(),name,image:rec.image||'',servings:rec.servings||null,
+            cook:rec.cook||null,prep:rec.prep||null,
+            source:rec.source||'',sourceType:rec.sourceType||'manual',
+            ingredients:(rec.ingredients||[]).map(i=>({qty:i&&i.qty!=null?i.qty:null,unit:(i&&i.unit)||null,name:(i&&i.name)||''})).filter(i=>i.name.trim()),
+            steps:(rec.steps||[]).filter(s=>typeof s==='string'&&s.trim()),
+            createdAt:Date.now(),favorite:false,notes:''
+          };
+          recipes.push(nr);await save('recipes',nr);
+          existingNames.add(key);added++;
+        }
+        fiRec.value='';
+        closeSheet();renderRecettes();
+        toast(added+' recette'+(added>1?'s':'')+' ajoutée'+(added>1?'s':'')+(skipped?(' — '+skipped+' déjà présente'+(skipped>1?'s':'')+', ignorée'+(skipped>1?'s':'')):''));
+      }catch(e){toast('Fichier invalide');}
+    };
+    impRecLbl.appendChild(fiRec);c.appendChild(impRecLbl);
+
     const clr=el('button','btn btn-danger btn-block','Tout effacer');
     clr.onclick=async()=>{
       if(!confirm('Effacer toutes les recettes, repas, stock et courses ? Action irréversible.'))return;
@@ -2839,6 +2969,8 @@ const TOUR_STEPS=[
    text:'Générées automatiquement, triées par rayon. Cocher un article démarre son compte à rebours de péremption. Tape sur « Courses ».'},
   {kind:'tap',sel:'#btn-settings',after:'sheet',title:'Réglages',
    text:'Foyer, durées de péremption personnalisables, synchro entre téléphones, sauvegarde : tout est là. Tape sur l’engrenage.'},
+  {kind:'tap',sel:'#btn-feedback',after:'sheet',title:'Un bug ? Une idée ?',
+   text:'Signale-le directement depuis l’app, envoyé par mail. Tape sur la bulle.'},
   {kind:'center',icon:'✅',title:'Prêt à cuisiner',
    text:'Retrouve ce tutoriel à tout moment via le bouton « ? » en haut. Bon appétit !'},
 ];
@@ -2980,6 +3112,10 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
    version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'2.3.0',date:'2026-07-29',items:[
+    'Nouveau : partager ses recettes avec quelqu’un d’autre (Réglages → Partager mes recettes), avec une sélection au cas par cas ; l’import chez le destinataire ajoute les recettes reçues sans rien remplacer.',
+    'Nouveau : étape du tutoriel pour signaler un bug ou proposer une idée.',
+  ]},
   {version:'2.2.0',date:'2026-07-29',items:[
     'Nouveau : note personnelle sur chaque recette (astuces, ajustements, avis...).',
     'Correction : pendant le tutoriel, on pouvait taper en dehors du bouton mis en avant et déclencher de vraies actions par erreur.',
@@ -3032,7 +3168,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='2.2.0';
+const APP_VERSION='2.3.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){

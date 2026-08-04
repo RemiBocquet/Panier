@@ -235,7 +235,20 @@ continue de fonctionner : les changements partent à la reconnexion.
 ## Sauvegarde
 
 Réglages → Exporter : un fichier JSON avec tout (recettes, repas, courses, réglages).
-Réglages → Importer : restaure. Pratique pour changer de téléphone, puisque rien n'est dans le cloud.
+Réglages → Importer : **remplace** les données actuelles par la sauvegarde. Pratique pour
+changer de téléphone, puisque rien n'est dans le cloud.
+
+## Partager ses recettes avec quelqu'un d'autre
+
+Réglages → **Partager mes recettes** : une liste à cocher permet de choisir précisément quelles
+recettes envoyer (recherche par nom, bouton Tout sélectionner / Tout désélectionner). Seul le
+contenu est transmis (ni favoris, ni notes perso, propres à chaque appareil), via le partage
+natif du téléphone si disponible, sinon en téléchargeant un fichier JSON.
+
+Réglages → **Importer des recettes partagées**, côté destinataire : contrairement à la
+restauration de sauvegarde ci-dessus, cet import **ajoute** les recettes reçues aux siennes sans
+rien remplacer ni supprimer. Les doublons (même nom, insensible à la casse et aux accents) sont
+ignorés plutôt que dupliqués.
 
 ## Signaler un bug ou proposer une idée
 
