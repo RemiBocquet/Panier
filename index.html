@@ -70,6 +70,7 @@ main{padding:16px 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 24px);m
 .tagsrc.photo{background:#e9f1e5;color:var(--leaf)}
 .tagsrc.cuisineaz{background:#f1e6f5;color:#7d4a91}
 .tagsrc.\37 50g{background:#fbe6ea;color:#b23a5e}
+.tagsrc.mealdb{background:#e6f0fb;color:#2a5c9a}
 .chip{flex:none;display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;background:#eef3ef;color:var(--pine);font-weight:700;font-size:13px}
 .chip svg{width:16px;height:16px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round}
 .quickadd{display:flex;gap:9px;margin-bottom:6px}
@@ -951,6 +952,50 @@ function viaProxy(t){
   return b?b+'?url='+encodeURIComponent(t):t;
 }
 
+/* Recherche TheMealDB, API officielle, gratuite, CORS ouvert.
+   Clé de test publique "1" (celle documentée par TheMealDB pour un usage non-commercial) :
+   pas d'inscription, mais catalogue anglophone. */
+const MEALDB_BASE='https://www.themealdb.com/api/json/v1/1';
+async function mealDbFetch(path){
+  const r=await fetch(MEALDB_BASE+path,{headers:{'Accept':'application/json'}});
+  if(!r.ok)throw new Error('TheMealDB indisponible ('+r.status+').');
+  return r.json();
+}
+async function mealDbSearchByName(q){
+  const d=await mealDbFetch('/search.php?s='+encodeURIComponent(q));
+  return d.meals||[];
+}
+async function mealDbSearchByIngredient(q){
+  const d=await mealDbFetch('/filter.php?i='+encodeURIComponent(q.trim().replace(/\s+/g,'_')));
+  return d.meals||[];
+}
+async function mealDbLookup(id){
+  const d=await mealDbFetch('/lookup.php?i='+encodeURIComponent(id));
+  return (d.meals||[])[0]||null;
+}
+/* Ingrédients TheMealDB : 20 paires strIngredientN/strMeasureN, souvent vides.
+   La mesure ("3/4 cup", "1 tbsp"…) est repassée dans parseIngredient() qui sait déjà
+   reconnaître les unités anglaises (UNIT_MAP les mappe vers leurs équivalents affichés). */
+function normalizeMealDbRecipe(m){
+  if(!m)throw new Error('Recette introuvable.');
+  const ingredients=[];
+  for(let i=1;i<=20;i++){
+    const name=(m['strIngredient'+i]||'').trim();
+    if(!name)continue;
+    const measure=(m['strMeasure'+i]||'').trim();
+    const p=parseIngredient(measure?measure+' '+name:name);
+    ingredients.push(p?{qty:p.qty,unit:p.unit,name:p.name}:{qty:null,unit:null,name});
+  }
+  return{
+    name:(m.strMeal||'Recette').trim(),
+    image:m.strMealThumb||'',
+    servings:null,prep:null,cook:null,
+    ingredients,
+    steps:instrToSteps(m.strInstructions),
+    partial:ingredients.length===0
+  };
+}
+
 /* Lecture d'une page recette jow.com
 */
 function splitJowAnchor(t){
@@ -1596,7 +1641,7 @@ function buildFilterBar(){
   ex.appendChild(exI);adv.appendChild(ex);
   const sf=el('div','field');sf.innerHTML='<label>Provenance</label>';
   const sel=el('select');
-  [['','Toutes'],['marmiton','Marmiton'],['jow','Jow'],['cuisineaz','CuisineAZ'],['750g','750g'],['photo','Photo (OCR)'],['manual','Saisie manuelle'],['web','Autre site']]
+  [['','Toutes'],['marmiton','Marmiton'],['jow','Jow'],['cuisineaz','CuisineAZ'],['750g','750g'],['mealdb','TheMealDB'],['photo','Photo (OCR)'],['manual','Saisie manuelle'],['web','Autre site']]
     .forEach(([v,l])=>{const o=el('option',null,l);o.value=v;if(rFilter.src===v)o.selected=true;sel.appendChild(o);});
   sel.onchange=()=>{rFilter.src=sel.value;refreshRecipeList();};
   sf.appendChild(sel);adv.appendChild(sf);
@@ -2104,6 +2149,10 @@ function openImport(prefillUrl){
     oj.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><span class="tx"><b>Rechercher sur Jow</b><span>Par nom — peut échouer, l’import par lien est plus sûr</span></span>';
     oj.onclick=()=>openJowSearch();
     c.appendChild(oj);
+    const om=el('button','opt');
+    om.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span><span class="tx"><b>Rechercher (TheMealDB)</b><span>Par nom ou ingrédient — API officielle, résultats en anglais</span></span>';
+    om.onclick=()=>openMealDbSearch();
+    c.appendChild(om);
     const o2=el('button','opt');
     o2.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span class="tx"><b>Depuis une photo</b><span>Capture d’écran ou photo d’un livre — lecture locale</span></span>';
     o2.onclick=openImportPhoto;
@@ -2217,6 +2266,110 @@ function openJowSearch(prefill){
   });
 }
 
+/* Recherche TheMealDB par nom ou par ingrédient */
+function openMealDbSearch(){
+  let mode='name';
+  openSheet('Rechercher une recette (TheMealDB)',c=>{
+    const warn=el('div','hint');
+    warn.innerHTML='🌍 <b>TheMealDB</b> est une API de recettes officielle et gratuite, sans souci de CGU — mais son catalogue est international : les résultats (titre, ingrédients, étapes) seront en anglais. Tu pourras tout modifier après import.';
+    warn.style.cssText='margin-bottom:12px;padding:10px 12px;background:#e6f0fb;border-radius:10px;color:#2a5c9a';
+    c.appendChild(warn);
+
+    const chips=el('div','fchips');chips.style.marginBottom='10px';
+    const chipName=el('button','fchip on','Par nom');chipName.type='button';
+    const chipIng=el('button','fchip','Par ingrédient');chipIng.type='button';
+    chips.appendChild(chipName);chips.appendChild(chipIng);c.appendChild(chips);
+
+    const f=el('div','field');const lab=el('label',null,'Nom de la recette');f.appendChild(lab);
+    const inp=el('input');inp.type='search';inp.placeholder='chicken curry, lasagna…';
+    inp.autocomplete='off';inp.enterKeyHint='search';
+    f.appendChild(inp);c.appendChild(f);
+
+    function setMode(m){
+      mode=m;
+      chipName.classList.toggle('on',m==='name');
+      chipIng.classList.toggle('on',m==='ingredient');
+      lab.textContent=m==='name'?'Nom de la recette':'Ingrédient';
+      inp.placeholder=m==='name'?'chicken curry, lasagna…':'chicken, salmon, potato…';
+    }
+    chipName.onclick=()=>setMode('name');
+    chipIng.onclick=()=>setMode('ingredient');
+
+    const btn=el('button','btn btn-primary btn-block');
+    const lbl='<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Rechercher';
+    btn.innerHTML=lbl;
+    const status=el('div','hint');status.style.marginTop='10px';
+    const results=el('div');results.style.marginTop='6px';
+
+    async function run(){
+      const q=inp.value.trim();
+      if(!q){status.textContent=mode==='name'?'Saisis un nom de recette.':'Saisis un ingrédient.';return;}
+      btn.disabled=true;btn.innerHTML='<span class="spin"></span> Recherche…';
+      status.textContent='';results.innerHTML='';
+      try{
+        const hits=mode==='name'?await mealDbSearchByName(q):await mealDbSearchByIngredient(q);
+        if(!hits.length){status.textContent='Aucun résultat pour « '+q+' ».';}
+        else{
+          results.appendChild(sectionEyebrow('Résultats',hits.length));
+          hits.forEach(hit=>{
+            const row=el('div','pickrow');
+            const th=el('div','thumb');
+            if(hit.strMealThumb)th.style.backgroundImage="url('"+hit.strMealThumb+"/preview')";
+            else th.textContent=(hit.strMeal||'?').charAt(0).toUpperCase();
+            const t=el('div','t');
+            t.appendChild(el('div',null,hit.strMeal||'Sans nom'));
+            if(hit.strInstructions){
+              const sub=el('div','sub');sub.style.cssText='font-size:12.5px;color:var(--muted)';
+              let n=0;for(let i=1;i<=20;i++){if((hit['strIngredient'+i]||'').trim())n++;}
+              sub.textContent=n+' ingrédients';
+              t.appendChild(sub);
+            }
+            const go=el('div','go');
+            go.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>';
+            row.appendChild(th);row.appendChild(t);row.appendChild(go);
+            row.onclick=async()=>{
+              if(row.classList.contains('busy'))return;
+              let meal=hit;
+              if(!meal.strInstructions){
+                row.classList.add('busy');row.style.opacity='.5';row.style.pointerEvents='none';
+                status.textContent='Chargement de la recette…';
+                try{
+                  meal=await mealDbLookup(hit.idMeal);
+                  if(!meal)throw new Error('Recette introuvable.');
+                }catch(err){
+                  status.innerHTML='❌ '+esc(err.message);
+                  row.classList.remove('busy');row.style.opacity='';row.style.pointerEvents='';
+                  return;
+                }
+                status.textContent='';
+              }
+              let rec;
+              try{rec=normalizeMealDbRecipe(meal);}
+              catch(e){
+                status.innerHTML='❌ '+esc(e.message);
+                row.classList.remove('busy');row.style.opacity='';row.style.pointerEvents='';
+                return;
+              }
+              rec.sourceType='mealdb';
+              if(meal.idMeal)rec.source='https://www.themealdb.com/meal/'+meal.idMeal;
+              closeSheet();
+              if(rec.partial)toast('Fiche partielle — complète les ingrédients');
+              openRecipeForm(rec);
+            };
+            results.appendChild(row);
+          });
+        }
+      }catch(err){
+        status.innerHTML='❌ '+esc(err.message);
+      }
+      btn.disabled=false;btn.innerHTML=lbl;
+    }
+    btn.onclick=run;
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')run();});
+    c.appendChild(btn);c.appendChild(status);c.appendChild(results);
+  });
+}
+
 function openImportPhoto(){
   openSheet('Importer depuis une photo',c=>{
     const intro=el('div','hint');
@@ -2270,7 +2423,7 @@ function openImportPhoto(){
 }
 
 /* Recherche d'images libres de droits (Wikimedia Commons) */
-const COMMONS_IMG_EXT=/\.(jpe?g|png|gif|webp)$/i;
+const COMMONS_IMG_EXT=/\.(jpe?g|png|gif|webp)(?:\?.*)?$/i;
 function stripHtml(h){return String(h||'').replace(/<[^>]+>/g,'').trim();}
 async function commonsImageSearch(query){
   const qs='?action=query&generator=search&gsrnamespace=6&gsrsearch='+encodeURIComponent(query)
@@ -2293,7 +2446,16 @@ async function commonsImageSearch(query){
   }
   return out;
 }
-function openImagePicker(initialQuery,onPick){
+/* onClose (optionnel) : appelé quand on quitte le sélecteur (croix, fond assombri, ou choix d'une
+   image) au lieu de la fermeture globale — permet à l'appelant (le formulaire recette) de rouvrir
+   sa fiche en cours plutôt que de la perdre. */
+function openImagePicker(initialQuery,onPick,onClose){
+  const prevCloseClick=$('#sheet-close').onclick,prevScrimClick=$('#scrim').onclick;
+  const back=()=>{
+    $('#sheet-close').onclick=prevCloseClick;$('#scrim').onclick=prevScrimClick;
+    (onClose||closeSheet)();
+  };
+  $('#sheet-close').onclick=back;$('#scrim').onclick=back;
   openSheet('Choisir une image',c=>{
     const se=el('div','fsearch');se.style.marginBottom='10px';
     se.innerHTML='<svg class="mag" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
@@ -2331,7 +2493,10 @@ function openImagePicker(initialQuery,onPick){
             cr.style.cssText='position:absolute;left:0;right:0;bottom:0;font-size:9.5px;color:#fff;background:rgba(0,0,0,.55);padding:2px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
             cell.appendChild(cr);
           }
-          cell.onclick=()=>{onPick(r.url);closeSheet();};
+          cell.onclick=()=>{
+            $('#sheet-close').onclick=prevCloseClick;$('#scrim').onclick=prevScrimClick;
+            onPick(r.url);
+          };
           grid.appendChild(cell);
         });
       }catch(e){
@@ -2387,10 +2552,21 @@ function openRecipeForm(recipe){
 
     const findImg=el('button','btn btn-ghost btn-block');findImg.style.marginBottom='14px';
     findImg.innerHTML='<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg> Chercher une image libre de droits';
-    findImg.onclick=()=>{
-      openImagePicker(nameF.input.value||data.name,url=>{
-        imgF.input.value=url;syncImgPrev();
+    // Instantané de la fiche en cours de saisie : permet de rouvrir le formulaire
+    // (au lieu de le perdre) qu'on choisisse une image ou qu'on annule la recherche.
+    function snapshotForm(){
+      return Object.assign({},data,{
+        name:nameF.input.value,
+        image:imgF.input.value,
+        servings:servF.input.value,
+        steps:sta.value.split(/\r?\n/)
       });
+    }
+    findImg.onclick=()=>{
+      const snap=snapshotForm();
+      openImagePicker(nameF.input.value||data.name,
+        url=>openRecipeForm(Object.assign({},snap,{image:url})),
+        ()=>openRecipeForm(snap));
     };
     c.appendChild(findImg);
 
@@ -3120,6 +3296,11 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
    version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'2.4.0',date:'2026-08-06',items:[
+    'Nouveau : recherche de recettes par nom ou par ingrédient via TheMealDB (API officielle, gratuite, catalogue anglophone), accessible depuis Recettes → Importer.',
+    'Correction : le choix d’image libre de droits (Wikimedia Commons) ne renvoyait plus aucun résultat.',
+    'Correction : fermer le sélecteur d’image libre de droits effaçait la recette en cours de saisie.',
+  ]},
   {version:'2.3.1',date:'2026-07-29',items:[
     'Correction : le bouton « Partager » de la sélection de recettes pouvait ne rien faire sur certains navigateurs.',
   ]},
@@ -3179,7 +3360,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='2.3.1';
+const APP_VERSION='2.4.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
