@@ -26,6 +26,11 @@
   --ff-display:Georgia,"Iowan Old Style","Times New Roman",serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* L'attribut `hidden` ne vaut `display:none` que dans la feuille du navigateur, la moins
+   prioritaire de toutes : n'importe quelle règle d'auteur posant un `display` la supplante.
+   Sans cette ligne, le bandeau de déménagement (display:flex) laissait voir son fond safran
+   sur 21 px, et les pastilles de compteur (display:grid) affichaient « 0 » en permanence. */
+[hidden]{display:none!important}
 html,body{margin:0;height:100%;background:var(--paper)}
 body{font-family:var(--ff-ui);color:var(--ink);background:var(--paper);line-height:1.45;overscroll-behavior-y:none;-webkit-font-smoothing:antialiased}
 button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:none}
@@ -4153,6 +4158,10 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
    version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'3.0.1',date:'2026-08-22',items:[
+    'Correction : sur la nouvelle adresse, une fine bande orange restait visible en haut de l’écran.',
+    'Correction : la pastille de compteur des onglets restait affichée, à zéro, sur les onglets vides.',
+  ]},
   {version:'3.0.0',date:'2026-08-22',items:[
     'Panier a déménagé ! : la nouvelle adresse est panier.remibocquet.fr. Un bandeau et une procédure guidée apparaissent sur l’ancienne adresse pour transférer tes données, installer la nouvelle application et désinstaller l’ancienne sans rien perdre.',
     'Nouveau : sauvegarde et restauration complètes depuis Réglages. Le fichier contient tout: recettes, repas, courses, stock et réglages.',
@@ -4228,7 +4237,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='3.0.0';
+const APP_VERSION='3.0.1';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -4332,6 +4341,8 @@ async function applySyncCodeFromUrl(q){
    elle ne casse rien.
    ====================================================================== */
 const EN={
+  'Correction : sur la nouvelle adresse, une fine bande orange restait visible en haut de l’écran — le bandeau de déménagement, vide mais toujours dans la page.':'Fixed: on the new address, a thin orange strip stayed at the top of the screen — the relocation banner, empty but still laid out.',
+  'Correction : la pastille de compteur des onglets restait affichée, à zéro, sur les onglets vides.':'Fixed: the tab counter badge stayed on screen, showing zero, on empty tabs.',
   'Code de synchro refusé : trop faible pour être sûr':'Sync code refused: too weak to be safe',
   'Ce lien veut aussi changer le serveur de synchro pour :\n\n{url}\n\nNe l’accepte que si tu l’as généré toi-même. Continuer ?':'This link also wants to change the sync server to:\n\n{url}\n\nOnly accept it if you generated it yourself. Continue?',
   'Nouveau : Hello! Panier parle anglais! La langue se choisit au premier démarrage et se change à tout moment dans Réglages → Langue. Tout suit, mais tes recettes restent tels que tu les as écrits.':'New: Hello! Panier speaks English! Pick the language on first launch, change it any time in Settings → Language. Everything follows, but your recipes stay exactly as you wrote them.',
