@@ -1,17 +1,19 @@
 // Panier — service worker
-const VERSION = 'panier-v2.4.0';
+const VERSION = 'panier-v3.0.0';
 const SHELL_CACHE = 'panier-shell-' + VERSION;
 const STATIC_CACHE = 'panier-static-v1';
-const CDN_CACHE = 'panier-cdn-v1';
+// PAN-3 : les bibliotheques sont desormais servies par l'application elle-meme.
+// Elles sont immuables (versions figees dans vendor/), donc cache-first, et separees
+// du cache applicatif pour ne pas etre re-telechargees a chaque version de Panier.
+// N'incrementer ce numero QUE si le contenu de vendor/ change.
+const VENDOR_CACHE = 'panier-vendor-v1';
 
-const SHELL = ['./', './index.html', './manifest.webmanifest'];
+const SHELL = ['./', './index.html', './manifest.webmanifest', './manifest-en.webmanifest'];
 const STATIC = [
   './icon-192.png', './icon-512.png', './icon-maskable-512.png',
   './apple-touch-icon.png', './favicon-64.png'
 ];
 
-// Tesseract et le générateur de QR cde
-const CDN_HOSTS = ['cdn.jsdelivr.net', 'unpkg.com', 'tessdata.projectnaptha.com'];
 const NET_TIMEOUT = 4000;
 
 self.addEventListener('install', (event) => {
@@ -27,7 +29,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(
-      keys.filter((k) => k.startsWith('panier-shell-') && k !== SHELL_CACHE)
+      keys.filter((k) => (k.startsWith('panier-shell-') && k !== SHELL_CACHE)
+                      || (k.startsWith('panier-vendor-') && k !== VENDOR_CACHE)
+                      || k.startsWith('panier-cdn-'))   // PAN-3 : plus de tiers a mettre en cache
           .map((k) => caches.delete(k))
     );
     await self.clients.claim();
@@ -71,7 +75,8 @@ async function cacheFirst(req, cacheName) {
   const hit = await cache.match(req);
   if (hit) return hit;
   const res = await fetch(req);
-  if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone()).catch(() => {});
+  // Tout est same-origin depuis PAN-3 : une reponse opaque serait anormale, on l'ecarte.
+  if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
   return res;
 }
 
@@ -81,13 +86,14 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  // cache des biliothèques pour qu'elles fonctionnent hors-ligne après un premier chargement.
-  if (CDN_HOSTS.includes(url.hostname)) {
-    event.respondWith(cacheFirst(req, CDN_CACHE).catch(() => fetch(req)));
+  if (url.origin !== self.location.origin) return;
+
+  // Bibliotheques versionnees (vendor/) : cache d'abord, pour qu'elles fonctionnent
+  // hors-ligne apres un premier chargement et ne repassent plus par le reseau.
+  if (url.pathname.includes('/vendor/')) {
+    event.respondWith(cacheFirst(req, VENDOR_CACHE).catch(() => fetch(req)));
     return;
   }
-
-  if (url.origin !== self.location.origin) return;
 
   // Icônes et binaires : cache d'abord.
   if (/\.(png|jpg|jpeg|svg|ico|woff2?)$/i.test(url.pathname)) {

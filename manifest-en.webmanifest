@@ -1,0 +1,33 @@
+{
+  "name": "Panier — meals & shopping",
+  "short_name": "Panier",
+  "description": "Plan your meals and get the shopping list built for you. Import recipes from a link, or read them from a screenshot.",
+  "id": "/",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF6EE",
+  "theme_color": "#235347",
+  "lang": "en",
+  "categories": ["food", "lifestyle", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Shopping list", "url": "./?tab=courses", "short_name": "Shopping" },
+    { "name": "Meals to cook", "url": "./?tab=repas", "short_name": "Meals" },
+    { "name": "Import a recipe", "url": "./?action=import", "short_name": "Import" }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "shared"
+    }
+  }
+}
