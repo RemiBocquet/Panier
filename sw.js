@@ -1,5 +1,5 @@
 // Panier — service worker
-const VERSION = 'panier-v3.1.0';
+const VERSION = 'panier-v3.1.1';
 const SHELL_CACHE = 'panier-shell-' + VERSION;
 const STATIC_CACHE = 'panier-static-v1';
 // PAN-3 : les bibliotheques sont desormais servies par l'application elle-meme.
@@ -34,6 +34,18 @@ self.addEventListener('activate', (event) => {
                       || k.startsWith('panier-cdn-'))   // PAN-3 : plus de tiers a mettre en cache
           .map((k) => caches.delete(k))
     );
+
+    // Purge unique des reponses d'API qu'une version anterieure du worker a pu
+    // enregistrer. Tant que /api/ tombait dans networkFirst, une reponse 200 du
+    // serveur web — sa page d'accueil, faute de relais configure — etait mise en
+    // cache comme s'il s'agissait d'un resultat de recherche. Le nom du cache
+    // applicatif ne changeant pas a chaque correctif, cette entree survivrait au
+    // remplacement du worker : on l'enleve nommement.
+    const shell = await caches.open(SHELL_CACHE);
+    for (const req of await shell.keys()) {
+      if (new URL(req.url).pathname.startsWith('/api/')) await shell.delete(req);
+    }
+
     await self.clients.claim();
   })());
 });
@@ -87,6 +99,18 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   if (url.origin !== self.location.origin) return;
+
+  // Catalogue de recettes : jamais intercepte.
+  //
+  // Deux raisons, et la premiere est un bug vecu. networkFirst se rabat sur
+  // './index.html' quand le reseau echoue : une recherche dont le service ne
+  // repond pas recevait donc la page HTML de l'application, que l'appli tentait
+  // de lire comme du JSON (« Unexpected token '<' »). Un repli de navigation n'a
+  // aucun sens pour un appel d'API : mieux vaut laisser l'erreur reelle passer.
+  //
+  // Ensuite, les resultats n'ont rien a faire en cache : ils dependent de la
+  // requete, et le catalogue evolue a chaque moisson.
+  if (url.pathname.startsWith('/api/')) return;
 
   // Bibliotheques versionnees (vendor/) : cache d'abord, pour qu'elles fonctionnent
   // hors-ligne apres un premier chargement et ne repassent plus par le reseau.
