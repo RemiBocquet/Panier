@@ -451,7 +451,7 @@ async function purgeTombstones(){
 }
 
 /* Unités & parsing */
-const UNITS=[['kg','kg'],['kilogramme','kg'],['kilogrammes','kg'],['kilo','kg'],['kilos','kg'],['g','g'],['gr','g'],['gramme','g'],['grammes','g'],['mg','mg'],['l','l'],['litre','l'],['litres','l'],['dl','dl'],['cl','cl'],['ml','ml'],['millilitre','ml'],['millilitres','ml'],['càs','c. à soupe'],['cas','c. à soupe'],['cuillère à soupe','c. à soupe'],['cuillères à soupe','c. à soupe'],['cuillere à soupe','c. à soupe'],['cuilleres à soupe','c. à soupe'],['c. à soupe','c. à soupe'],['c à soupe','c. à soupe'],['cs','c. à soupe'],['càc','c. à café'],['cac','c. à café'],['cuillère à café','c. à café'],['cuillères à café','c. à café'],['cuillere à café','c. à café'],['cuilleres à café','c. à café'],['c. à café','c. à café'],['c à café','c. à café'],['cc','c. à café'],['pincée','pincée'],['pincées','pincée'],['gousse','gousse'],['gousses','gousse'],['tranche','tranche'],['tranches','tranche'],['sachet','sachet'],['sachets','sachet'],['boîte','boîte'],['boîtes','boîte'],['boite','boîte'],['boites','boîte'],['botte','botte'],['bottes','botte'],['brin','brin'],['brins','brin'],['feuille','feuille'],['feuilles','feuille'],['verre','verre'],['verres','verre'],['tasse','tasse'],['tasses','tasse'],['pot','pot'],['pots','pot'],['bouquet','bouquet'],['bouquets','bouquet'],['morceau','morceau'],['morceaux','morceau'],['boule','boule'],['boules','boule'],['cup','tasse'],['cups','tasse'],['tbsp','c. à soupe'],['tablespoon','c. à soupe'],['tablespoons','c. à soupe'],['tsp','c. à café'],['teaspoon','c. à café'],['teaspoons','c. à café'],['slice','tranche'],['slices','tranche'],['clove','gousse'],['cloves','gousse'],['pinch','pincée'],['pinches','pincée'],['oz','oz'],['lb','lb'],['lbs','lb'],['pound','lb'],['pounds','lb'],['ounce','oz'],['ounces','oz'],['can','boîte'],['cans','boîte'],['tin','boîte'],['tins','boîte'],['jar','bocal'],['jars','bocal'],['bunch','bouquet'],['bunches','bouquet'],['sprig','brin'],['sprigs','brin'],['handful','poignée'],['handfuls','poignée'],['packet','paquet'],['packets','paquet'],['pack','paquet'],['packs','paquet'],['bag','sachet'],['bags','sachet'],['sachet','sachet'],['sachets','sachet'],['stick','bâton'],['sticks','bâton'],['leaf','feuille'],['leaves','feuille'],['glass','verre'],['glasses','verre'],['drop','goutte'],['drops','goutte'],['knob','morceau'],['piece','morceau'],['pieces','morceau']];
+const UNITS=[['kg','kg'],['kilogramme','kg'],['kilogrammes','kg'],['kilo','kg'],['kilos','kg'],['g','g'],['gr','g'],['gramme','g'],['grammes','g'],['mg','mg'],['l','l'],['litre','l'],['litres','l'],['dl','dl'],['cl','cl'],['ml','ml'],['millilitre','ml'],['millilitres','ml'],['càs','c. à soupe'],['cas','c. à soupe'],['cuillère à soupe','c. à soupe'],['cuillères à soupe','c. à soupe'],['cuillere à soupe','c. à soupe'],['cuilleres à soupe','c. à soupe'],['c. à soupe','c. à soupe'],['c à soupe','c. à soupe'],['c. à s.','c. à soupe'],['c.à.s','c. à soupe'],['c. à c.','c. à café'],['c.à.c','c. à café'],['cs','c. à soupe'],['càc','c. à café'],['cac','c. à café'],['cuillère à café','c. à café'],['cuillères à café','c. à café'],['cuillere à café','c. à café'],['cuilleres à café','c. à café'],['c. à café','c. à café'],['c à café','c. à café'],['cc','c. à café'],['pincée','pincée'],['pincées','pincée'],['gousse','gousse'],['gousses','gousse'],['tranche','tranche'],['tranches','tranche'],['sachet','sachet'],['sachets','sachet'],['boîte','boîte'],['boîtes','boîte'],['boite','boîte'],['boites','boîte'],['botte','botte'],['bottes','botte'],['brin','brin'],['brins','brin'],['branche','brin'],['branches','brin'],['feuille','feuille'],['feuilles','feuille'],['verre','verre'],['verres','verre'],['tasse','tasse'],['tasses','tasse'],['pot','pot'],['pots','pot'],['bouquet','bouquet'],['bouquets','bouquet'],['morceau','morceau'],['morceaux','morceau'],['boule','boule'],['boules','boule'],['cup','tasse'],['cups','tasse'],['tbsp','c. à soupe'],['tablespoon','c. à soupe'],['tablespoons','c. à soupe'],['tsp','c. à café'],['teaspoon','c. à café'],['teaspoons','c. à café'],['slice','tranche'],['slices','tranche'],['clove','gousse'],['cloves','gousse'],['pinch','pincée'],['pinches','pincée'],['oz','oz'],['lb','lb'],['lbs','lb'],['pound','lb'],['pounds','lb'],['ounce','oz'],['ounces','oz'],['can','boîte'],['cans','boîte'],['tin','boîte'],['tins','boîte'],['jar','bocal'],['jars','bocal'],['bunch','bouquet'],['bunches','bouquet'],['sprig','brin'],['sprigs','brin'],['handful','poignée'],['handfuls','poignée'],['packet','paquet'],['packets','paquet'],['pack','paquet'],['packs','paquet'],['bag','sachet'],['bags','sachet'],['sachet','sachet'],['sachets','sachet'],['stick','bâton'],['sticks','bâton'],['leaf','feuille'],['leaves','feuille'],['glass','verre'],['glasses','verre'],['drop','goutte'],['drops','goutte'],['knob','morceau'],['piece','morceau'],['pieces','morceau']];
 const UNIT_MAP=UNITS.slice().sort((a,b)=>b[0].length-a[0].length);
 const WORD_NUM={un:1,une:1,deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10,demi:0.5,demie:0.5,
   a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,half:0.5,dozen:12};
@@ -2677,8 +2677,8 @@ function openImport(prefillUrl){
     o1.onclick=()=>openImportLink(prefillUrl);
     c.appendChild(o1);
     const oj=el('button','opt');
-    oj.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><span class="tx"><b>'+esc(T('Rechercher sur Jow'))+'</b><span>'+esc(T('Par nom, peut échouer: l’import par lien est plus sûr'))+'</span></span>';
-    oj.onclick=()=>openJowSearch();
+    oj.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><span class="tx"><b>'+esc(T('Rechercher une recette'))+'</b><span>'+esc(T('Par nom, dans le catalogue Marmiton, Jow, CuisineAZ et 750g'))+'</span></span>';
+    oj.onclick=()=>openCatalogSearch();
     c.appendChild(oj);
     const om=el('button','opt');
     om.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span><span class="tx"><b>'+esc(T('Rechercher (TheMealDB)'))+'</b><span>'+esc(T('Par nom ou ingrédient (catalogue anglophone)'))+'</span></span>';
@@ -2793,6 +2793,147 @@ function openJowSearch(prefill){
     c.appendChild(btn);c.appendChild(status);c.appendChild(results);
     if(prefill)setTimeout(run,60);
   });
+}
+
+/* Catalogue de recettes
+
+   Le Pi héberge une base de recettes moissonnée sur Marmiton, Jow, CuisineAZ et
+   750g (tools/scrape-recipes.py), interrogée par un petit service de recherche
+   (tools/recipe-server.py). L'application ne télécharge jamais cette base : elle
+   envoie une requête, reçoit une vingtaine de lignes, et ne demande la fiche
+   complète qu'au moment où l'utilisateur la choisit.
+
+   Ce catalogue reste une source TIERCE du point de vue de PAN-1 : son contenu
+   vient de sites externes. Tout ce qui en sort repasse donc par sanitizeRecipe(),
+   exactement comme un import par lien. */
+const DEFAULT_CATALOG='https://panier.remibocquet.fr/api/recipes';
+function catalogBase(){
+  return ((settings.catalogUrl||'').trim()||DEFAULT_CATALOG).replace(/\/+$/,'');
+}
+async function catalogSearch(q,limit){
+  const u=catalogBase()+'/search?q='+encodeURIComponent(q)+'&limit='+(limit||20);
+  const r=await fetch(u,{headers:{'Accept':'application/json'}});
+  if(r.status===429)throw new Error(T('Trop de recherches d’affilée, réessaie dans un instant.'));
+  if(!r.ok)throw new Error(T('Catalogue indisponible ({code}).',{code:r.status}));
+  const j=await r.json();
+  return Array.isArray(j.results)?j.results:[];
+}
+/* Le jeton vient de la recherche : le catalogue ne délivre une fiche complète
+   que sur présentation de celui-ci. C'est ce qui empêche de parcourir la base
+   au compteur, de 1 à 180 000, sans jamais passer par une recherche. */
+async function catalogRecipe(id,token){
+  const r=await fetch(catalogBase()+'/recipe?id='+encodeURIComponent(id)
+                      +'&t='+encodeURIComponent(token||''),
+                      {headers:{'Accept':'application/json'}});
+  if(!r.ok)throw new Error(T('Catalogue indisponible ({code}).',{code:r.status}));
+  const j=await r.json();
+  if(!j||!j.recipe)throw new Error(T('Recette introuvable dans le catalogue.'));
+  return sanitizeRecipe(j.recipe);
+}
+/* Ajout direct à la bibliothèque, sans passer par le formulaire : la fiche du
+   catalogue est déjà complète, et l'intérêt de cet écran est d'en ajouter
+   plusieurs d'affilée. Le dédoublonnage se fait par nom, comme pour l'import de
+   recettes partagées — un identifiant de catalogue n'aurait aucun sens ici. */
+async function addCatalogRecipe(rec){
+  const name=(rec.name||'').trim();
+  if(!name)return null;
+  const key=normIng(name);
+  if(recipes.some(r=>normIng(r.name)===key))return null;
+  const nr={id:uid(),name,image:rec.image||'',servings:rec.servings||null,
+    cook:rec.cook||null,prep:rec.prep||null,
+    source:rec.source||'',sourceType:rec.sourceType||'web',
+    ingredients:(rec.ingredients||[]).slice(),steps:(rec.steps||[]).slice(),
+    createdAt:Date.now(),favorite:false,notes:''};
+  recipes.push(nr);await save('recipes',nr);
+  return nr;
+}
+function openCatalogSearch(prefill){
+  openSheet(T('Rechercher une recette'),c=>{
+    const hint=el('div','hint');
+    hint.innerHTML=T('🔎 Cherche par nom dans le catalogue (Marmiton, Jow, CuisineAZ, 750g). Tape sur un résultat pour l’ajouter directement à tes recettes.');
+    hint.style.marginBottom='10px';c.appendChild(hint);
+
+    const f=el('div','field');f.innerHTML='<label>'+esc(T('Nom de la recette'))+'</label>';
+    const inp=el('input');inp.type='search';inp.placeholder=T('quiche lorraine, poulet curry...');
+    inp.autocomplete='off';inp.enterKeyHint='search';
+    if(prefill)inp.value=prefill;
+    f.appendChild(inp);c.appendChild(f);
+
+    const btn=el('button','btn btn-primary btn-block');
+    const lbl='<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'+esc(T('Rechercher'));
+    btn.innerHTML=lbl;
+    const status=el('div','hint');status.style.marginTop='10px';
+    const results=el('div');results.style.marginTop='6px';
+
+    async function run(){
+      const q=inp.value.trim();
+      if(q.length<2){status.textContent=T('Saisis au moins deux caractères.');return;}
+      btn.disabled=true;btn.innerHTML='<span class="spin"></span> '+esc(T('Recherche...'));
+      status.textContent='';results.innerHTML='';
+      try{
+        const hits=await catalogSearch(q,20);
+        if(!hits.length)status.textContent=T('Aucun résultat pour « {q} ».',{q});
+        else{
+          results.appendChild(sectionEyebrow(T('Résultats'),hits.length));
+          hits.forEach(h=>results.appendChild(catalogRow(h)));
+        }
+      }catch(err){
+        status.innerHTML='❌ '+esc(err.message)+'<br><br>'
+          +T('Le catalogue est hébergé sur le serveur de l’application : il faut être en ligne pour y chercher. L’import par lien, lui, reste disponible.');
+      }
+      btn.disabled=false;btn.innerHTML=lbl;
+    }
+    btn.onclick=run;
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')run();});
+    c.appendChild(btn);c.appendChild(status);c.appendChild(results);
+    if(prefill)setTimeout(run,60);
+  });
+}
+/* Une ligne de résultat. La feuille reste ouverte après un ajout : on peut en
+   piocher plusieurs de suite, et chaque ligne garde la trace de son sort. */
+function catalogRow(h){
+  const row=el('div','pickrow');
+  const th=el('div','thumb');
+  const bg=cssUrl(h.image);
+  if(bg)th.style.backgroundImage=bg;
+  else th.textContent=(h.name||'?').charAt(0).toUpperCase();
+  const t=el('div','t');
+  t.appendChild(el('div',null,h.name));
+  const sub=el('div','sub');sub.style.cssText='font-size:12.5px;color:var(--muted)';
+  const bits=[TP(h.ingredients||0,'{n} ingrédient','{n} ingrédients')];
+  if(h.servings)bits.push(T('{n} pers.',{n:h.servings}));
+  if(h.prep||h.cook)bits.push(T('{n} min',{n:(h.prep||0)+(h.cook||0)}));
+  sub.innerHTML='<span class="tagsrc '+esc(h.site||'web')+'">'+esc(sourceLabel(h.site))+'</span> &nbsp;'
+    +esc(bits.join(' · '));
+  t.appendChild(sub);
+  const go=el('div','go');
+  go.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+  row.appendChild(th);row.appendChild(t);row.appendChild(go);
+
+  let done=false;
+  row.onclick=async()=>{
+    if(done)return;
+    done=true;go.innerHTML='<span class="spin"></span>';
+    try{
+      const rec=await catalogRecipe(h.id,h.token);
+      const added=await addCatalogRecipe(rec);
+      if(added){
+        go.textContent='✓';go.style.color='var(--leaf)';
+        row.style.opacity='.65';
+        renderRecettes();
+        toast(T('« {n} » ajoutée',{n:added.name}));
+      }else{
+        go.textContent='=';go.style.color='var(--muted)';
+        row.style.opacity='.65';
+        toast(T('« {n} » est déjà dans tes recettes',{n:rec.name}));
+      }
+    }catch(err){
+      done=false;
+      go.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+      toast('❌ '+err.message);
+    }
+  };
+  return row;
 }
 
 /* Recherche TheMealDB par nom ou par ingrédient */
@@ -4158,6 +4299,10 @@ $('#btn-new').onclick=()=>openRecipeForm({});
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
    version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'3.1.0',date:'2026-08-26',items:[
+    'Nouveau : rechercher une recette par son nom, dans un catalogue de plus de 180 000 recettes! Recettes → Importer → « Rechercher une recette ».',
+    'Amélioration : les quantités abrégées « 2 c. à s. », « 1 c. à c. » et « 1 branche de thym » sont maintenant reconnues à l’import.',
+  ]},
   {version:'3.0.1',date:'2026-08-22',items:[
     'Correction : sur la nouvelle adresse, une fine bande orange restait visible en haut de l’écran.',
     'Correction : la pastille de compteur des onglets restait affichée, à zéro, sur les onglets vides.',
@@ -4237,7 +4382,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='3.0.1';
+const APP_VERSION='3.1.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -4822,6 +4967,20 @@ const EN={
   'Nouveau : étape du tutoriel pour signaler un bug ou proposer une idée.':'New: a tour step for reporting a bug or suggesting an idea.',
   'Panier a déménagé ! : la nouvelle adresse est panier.remibocquet.fr. Un bandeau et une procédure guidée apparaissent sur l’ancienne adresse pour transférer tes données, installer la nouvelle application et désinstaller l’ancienne sans rien perdre.':'Panier has moved! The new address is panier.remibocquet.fr. A banner and a guided procedure appear at the old address to transfer your data, install the new app and uninstall the old one without losing anything.',
   'Sécurité : confirmation ajoutée avant de retirer un repas.':'Security: a confirmation was added before removing a meal.',
+  'Rechercher une recette':'Search for a recipe',
+  'Par nom, dans le catalogue Marmiton, Jow, CuisineAZ et 750g':'By name, across the Marmiton, Jow, CuisineAZ and 750g catalogue',
+  '🔎 Cherche par nom dans le catalogue (Marmiton, Jow, CuisineAZ, 750g). Tape sur un résultat pour l’ajouter directement à tes recettes.':'🔎 Search the catalogue by name (Marmiton, Jow, CuisineAZ, 750g). Tap a result to add it straight to your recipes.',
+  'Saisis au moins deux caractères.':'Type at least two characters.',
+  'Catalogue indisponible ({code}).':'Catalogue unavailable ({code}).',
+  'Trop de recherches d’affilée, réessaie dans un instant.':'Too many searches in a row, try again in a moment.',
+  'Recette introuvable dans le catalogue.':'Recipe not found in the catalogue.',
+  'Le catalogue est hébergé sur le serveur de l’application : il faut être en ligne pour y chercher. L’import par lien, lui, reste disponible.':'The catalogue lives on the app’s server, so searching it needs a connection. Importing from a link still works.',
+  '« {n} » ajoutée':'“{n}” added',
+  '« {n} » est déjà dans tes recettes':'“{n}” is already in your recipes',
+  '{n} min':'{n} min',
+  'Nouveau : rechercher une recette par son nom, dans un catalogue de plus de 180 000 recettes (Marmiton, Jow, CuisineAZ, 750g). Recettes → Importer → « Rechercher une recette ». Un appui sur un résultat l’ajoute directement à tes recettes, et la liste reste ouverte pour en piocher plusieurs de suite.':'New: search for a recipe by name across a catalogue of over 180,000 recipes (Marmiton, Jow, CuisineAZ, 750g). Recipes → Import → “Search for a recipe”. One tap adds a result straight to your recipes, and the list stays open so you can pick several in a row.',
+  'Cette recherche remplace l’ancienne « Rechercher sur Jow », qui échouait souvent. L’import par lien, la photo et la saisie manuelle ne changent pas.':'This search replaces the old “Search Jow”, which often failed. Importing from a link, from a photo and manual entry are unchanged.',
+  'Amélioration : les quantités abrégées « 2 c. à s. », « 1 c. à c. » et « 1 branche de thym » sont maintenant reconnues à l’import.':'Improved: the shorthand quantities “2 c. à s.”, “1 c. à c.” and “1 branche de thym” are now recognised on import.',
 };
 /* Les mots-clés de péremption tirent leur libellé anglais de leur premier alias : inutile
    de répéter ici les 150 lignes de SHELF_ALIASES. */

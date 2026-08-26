@@ -19,7 +19,7 @@ Après une mise à jour, une fenêtre **Nouveautés** résume ce qui a changé d
 visite (`CHANGELOG` dans `index.html`, juste au-dessus d'`APP_VERSION`). Elle ne s'affiche
 jamais au tout premier lancement.
 
-## Les trois façons d'ajouter une recette
+## Les quatre façons d'ajouter une recette
 
 **Depuis un lien** — Recettes → Importer → Depuis un lien.
 - Marmiton, CuisineAZ, 750g : lecture du JSON-LD `schema.org/Recipe` de la page.
@@ -28,7 +28,15 @@ jamais au tout premier lancement.
   Les liens `app.jow.com/...?recipeId=...` sont aussi tentés, mais Jow ne garantit pas leur
   résolution : si ça échoue, passez par le lien de page.
 
-**Rechercher sur Jow** — Recettes → Importer → Rechercher sur Jow.
+**Rechercher une recette** — Recettes → Importer → Rechercher une recette.
+- Cherche par nom dans un catalogue d'environ 180 000 recettes moissonnées sur Marmiton,
+  Jow, CuisineAZ et 750g, hébergé avec l'application. Un appui sur un résultat l'ajoute
+  directement à vos recettes, sans passer par le formulaire ; la feuille reste ouverte pour
+  en piocher plusieurs de suite.
+- Une recette déjà présente (même nom) est signalée plutôt que dupliquée.
+- Le catalogue vit sur le serveur : il faut être en ligne. L'import par lien et l'OCR, eux,
+  restent disponibles hors-ligne.
+- Constitution et hébergement du catalogue : voir [tools/README.md](tools/README.md).
 
 **Depuis une photo (OCR)** — Recettes → Importer → Depuis une photo.
 - Capture d'écran de n'importe quel site/appli, ou photo d'une page de livre.

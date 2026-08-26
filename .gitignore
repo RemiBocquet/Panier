@@ -1,0 +1,9 @@
+# Sorties du moissonneur (tools/scrape-recipes.py) : volumineuses, régénérables.
+panier-scrape.sqlite
+export/
+__pycache__/
+*.pyc
+*.sqlite.secret
+*.sqlite-wal
+*.sqlite-shm
+tools/
