@@ -4337,6 +4337,9 @@ $('#btn-create').onclick=()=>openCreateRecipe();
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
    version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'3.2.1',date:'2026-08-27',items:[
+    'Correction: Pré-traduction des termes les plus utilisés, et prise en compte des différents apostrophes.'
+  ]},
   {version:'3.2.0',date:'2026-08-27',items:[
     'La recherche par nom est désormais directement sur le bouton « Chercher une recette » de l’écran Recettes.',
     'Le bouton « Nouvelle » devient « Créer ma recette » et rassemble la saisie à la main, l’import depuis un lien, la photo (OCR) et TheMealDB.',
@@ -4428,7 +4431,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='3.2.0';
+const APP_VERSION='3.2.1';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -5035,6 +5038,7 @@ const EN={
   'La recherche par nom est désormais directement sur le bouton « Chercher une recette » de l’écran Recettes.':'Searching by name now sits straight on the “Search for a recipe” button of the Recipes screen.',
   'Le bouton « Nouvelle » devient « Créer ma recette » et rassemble la saisie à la main, l’import depuis un lien, la photo (OCR) et TheMealDB.':'The “New” button becomes “Create my recipe” and gathers manual entry, importing from a link, the photo (OCR) and TheMealDB.',
   'Nouveau : en anglais, les recettes du catalogue arrivent traduites. La recherche comprend l’anglais aussi.':'New: in English, catalogue recipes now arrive translated. Search understands English too.',
+  'Correction: Pré-traduction des termes les plus utilisés, et prise en compte des différents apostrophes.':'Fixed: Pre-translation of the most used words. Now handles apostrophes.',
 };
 /* Les mots-clés de péremption tirent leur libellé anglais de leur premier alias : inutile
    de répéter ici les 150 lignes de SHELF_ALIASES. */

@@ -95,13 +95,46 @@ def strip_accents(s):
     )
 
 
-def norm(s):
-    """Clé du lexique. Identique à celle de recipe-server.py, volontairement.
+# La ligature ne se décompose pas en NFD : strip_accents() ne la voit pas, il
+# faut la remplacer explicitement. Ça n'a rien d'un détail — « Œuf(s) » est
+# l'ingrédient le plus fréquent de tout le catalogue.
+LIGATURES = {"œ": "oe", "Œ": "oe", "æ": "ae", "Æ": "ae"}
 
-    Sans accents et sans casse : « Oignon », « oignon » et « OIGNONS » ne
-    doivent pas occuper trois lignes ni recevoir trois traductions.
+# « Œuf(s) », « Poireau(x) », « Pomme(s) de terre » : CuisineAZ marque le pluriel
+# ainsi. Le moissonneur enlève déjà ce suffixe des UNITÉS (« 8 tranche(s) »),
+# mais pas des noms d'ingrédients, où il crée une deuxième graphie pour chaque
+# terme.
+PLURAL_MARK = re.compile(r"\((?:s|x|es)\)", re.IGNORECASE)
+
+
+def norm(s):
+    """Clé du lexique.
+
+    Volontairement PLUS agressive que le norm() de recipe-server.py, et il ne
+    faut surtout pas les réunir : celui-là indexe des titres pour une recherche
+    plein texte, celui-ci fabrique une clé de dictionnaire. Ce qui se passe ici
+    ne doit jamais toucher l'index de recherche.
+
+    Quatre replis, tous mesurés sur le catalogue réel et tous coûteux à
+    négliger :
+
+      accents et casse   « Oignon », « oignon », « OIGNONS »
+      apostrophes        le catalogue écrit « huile d’olive » (U+2019), le
+                         lexique « huile d'olive ». Sans ça, les deux graphies
+                         de l'huile d'olive ratent — plus de 30 000 occurrences.
+      ligatures          « Œuf(s) », « jaune d’œuf »
+      marques de pluriel « Œuf(s) » et « Œufs » sont le même ingrédient
+      ponctuation        « Sel, poivre » et « Sel poivre » aussi
     """
-    return re.sub(r"\s+", " ", strip_accents(str(s or "")).lower()).strip()
+    s = str(s or "")
+    for a in ("’", "‘", "‛", "`", "´"):
+        s = s.replace(a, "'")
+    for lig, rep in LIGATURES.items():
+        s = s.replace(lig, rep)
+    s = strip_accents(s).lower()
+    s = PLURAL_MARK.sub("", s)
+    s = re.sub(r"[,;:.]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
 
 
 # --------------------------------------------------------------------------
@@ -172,6 +205,13 @@ SEED = {
     "poivre noir": "black pepper",
     "poivre blanc": "white pepper",
     "sel et poivre": "salt and pepper",
+    # « Sel, poivre » et « Sel poivre » : deuxième et cinquième ingrédients les
+    # plus fréquents du catalogue. La ponctuation étant repliée, une seule
+    # entrée couvre les deux graphies.
+    "sel poivre": "salt and pepper",
+    "sel ou sel fin": "salt",
+    "sel et poivre du moulin": "salt and freshly ground pepper",
+    "poivre du moulin": "freshly ground pepper",
     "sucre": "sugar",
     "sucre en poudre": "caster sugar",
     "sucre semoule": "caster sugar",
@@ -248,6 +288,9 @@ SEED = {
     "fromage râpé": "grated cheese",
     "fromage blanc": "fromage blanc",
     "gruyère": "Gruyère",
+    "gruyère râpé": "grated Gruyère",
+    "emmental râpé": "grated Emmental",
+    "parmesan râpé": "grated Parmesan",
     "emmental": "Emmental",
     "comté": "Comté",
     "parmesan": "Parmesan",
@@ -287,6 +330,7 @@ SEED = {
     "champignon": "mushroom",
     "champignons": "mushrooms",
     "champignons de paris": "button mushrooms",
+    "champignon de paris": "button mushroom",
     "poireau": "leek",
     "poireaux": "leeks",
     "céleri": "celery",
@@ -782,7 +826,14 @@ class TrStore:
         names = [n for n in names if n]
         if not names:
             return {}
-        keys = {norm(n): n for n in names}
+        # Une clé normalisée peut venir de PLUSIEURS noms bruts — « Sel » et
+        # « sel », « Œuf(s) » et « oeufs ». Les ranger dans un dict clé → nom
+        # perdrait tous les doublons sauf un, et ceux-là seraient déclarés
+        # inconnus alors qu'ils sont au lexique : c'est ce qui faisait annoncer
+        # 21 % de couverture au lieu de la vraie.
+        keys = {}
+        for n in names:
+            keys.setdefault(norm(n), []).append(n)
         out = {}
         db = self._db()
         # Par paquets : SQLite plafonne le nombre de paramètres d'une requête.
@@ -794,7 +845,8 @@ class TrStore:
                 "SELECT fr, en FROM lexicon WHERE lang=? AND fr IN (%s)" % qs,
                 [lang] + chunk,
             ):
-                out[keys[fr]] = en
+                for raw in keys[fr]:
+                    out[raw] = en
         return out
 
     def put(self, rows, source, lang="en"):
@@ -921,6 +973,52 @@ class TrStore:
         )
         db.commit()
 
+    def stale(self, lang="en"):
+        """Entrées dont la clé ne correspond plus à norm().
+
+        Une règle de normalisation qui change périme les clés déjà écrites :
+        elles ne seront plus jamais retrouvées, sans que rien ne le signale.
+        Plutôt qu'un numéro de version à tenir à jour, on recalcule — c'est
+        exact par construction, et la table est petite.
+        """
+        return [
+            (fr, en, src)
+            for fr, en, src in self._db().execute(
+                "SELECT fr, en, source FROM lexicon WHERE lang=?", (lang,)
+            )
+            if fr != norm(fr)
+        ]
+
+    def renormalize(self, lang="en"):
+        """Réécrit les clés périmées avec la règle courante.
+
+        En cas de collision — deux anciennes clés qui n'en font plus qu'une —
+        une relecture humaine l'emporte sur une sortie de machine : c'est la
+        seule des deux qu'on ne saurait pas refabriquer.
+        """
+        rows = self.stale(lang)
+        if not rows:
+            return 0
+        db = self._db()
+        best = {}
+        for fr, en, src in rows:
+            k = norm(fr)
+            if not k:
+                continue
+            if k not in best or (src == "manual" and best[k][1] != "manual"):
+                best[k] = (en, src)
+        now = int(time.time())
+        db.executemany(
+            "DELETE FROM lexicon WHERE lang=? AND fr=?",
+            [(lang, fr) for fr, _, _ in rows],
+        )
+        db.executemany(
+            "INSERT OR REPLACE INTO lexicon(fr, lang, en, source, ts) VALUES(?,?,?,?,?)",
+            [(k, lang, en, src, now) for k, (en, src) in best.items()],
+        )
+        db.commit()
+        return len(rows)
+
     def stats(self, lang="en"):
         db = self._db()
         by_source = dict(
@@ -1016,12 +1114,25 @@ def translate_ingredients(rec, store, tr, lang="en"):
     names = [(i.get("name") or "").strip() for i in ings]
     known = store.lookup(names, lang)
 
-    missing = sorted({n for n in names if n and n not in known})
+    # Dédoublonné par clé normalisée, pas par graphie : une fiche portant à la
+    # fois « Sel » et « sel » ne doit payer qu'une traduction.
+    seen, missing = set(), []
+    for n in sorted(set(names)):
+        k = norm(n)
+        if not n or n in known or k in seen:
+            continue
+        seen.add(k)
+        missing.append(n)
     engine = None
     if missing:
         got, engine = tr.translate(missing, context=ING_CONTEXT)
         store.put(zip(missing, got), engine, lang)
-        known.update(dict(zip(missing, got)))
+        # Redistribué par clé : seule la graphie représentante est partie au
+        # moteur, mais la traduction vaut pour toutes ses variantes de la fiche.
+        fresh = {norm(a): b for a, b in zip(missing, got)}
+        for n in names:
+            if n not in known and norm(n) in fresh:
+                known[n] = fresh[norm(n)]
 
     for ing, n in zip(ings, names):
         if n in known:
@@ -1182,7 +1293,19 @@ def cmd_fill(args, store, tr):
         )
     counts, _ = scan_ingredients(args.db)
     known = store.lookup(list(counts), args.lang)
-    missing = [n for n, _ in counts.most_common() if n not in known][: args.fill]
+    # Dédoublonné par clé normalisée : « Œuf(s) », « Oeufs » et « oeufs » sont
+    # une seule entrée de lexique, les envoyer trois fois serait payer trois
+    # fois la même traduction. On garde la graphie la plus fréquente comme
+    # représentante — c'est celle qui a le plus de chances d'être bien écrite,
+    # et le moteur traduit mieux « Œuf » que « oeuf(s) ».
+    seen, missing = set(), []
+    for n, _ in counts.most_common():
+        k = norm(n)
+        if n in known or k in seen:
+            continue
+        seen.add(k)
+        missing.append(n)
+    missing = missing[: args.fill]
     if not missing:
         print("Rien à remplir : tout le catalogue est déjà couvert.")
         return
@@ -1267,6 +1390,9 @@ def main():
     p.add_argument("--export", metavar="TSV", help="sort le lexique pour relecture")
     p.add_argument("--import", dest="imp", metavar="TSV",
                    help="reprend un TSV relu (écrase, marque « manual »)")
+    p.add_argument("--renormalize", action="store_true",
+                   help="réécrit les clés du lexique périmées par un changement "
+                        "de règle de normalisation")
     p.add_argument("--stats", action="store_true")
     p.add_argument("--usage", action="store_true", help="quota DeepL consommé")
     p.add_argument("--test", metavar="TEXTE", help="essai des moteurs")
@@ -1277,6 +1403,19 @@ def main():
 
     store = TrStore(store_path(args.db))
     tr = Translator.from_env(args.db, args.target)
+
+    if args.renormalize:
+        n = store.renormalize(args.lang)
+        print("%d clés réécrites." % n if n else "Aucune clé périmée.")
+    else:
+        # Silencieux tant que tout va bien, mais impossible à manquer sinon :
+        # des clés périmées ne se voient pas, elles font juste retomber la
+        # couverture sans rien dire.
+        n = len(store.stale(args.lang))
+        if n:
+            print("⚠ %d entrées du lexique ont une clé périmée : elles ne seront "
+                  "jamais retrouvées.\n  python3 %s --db %s --renormalize\n"
+                  % (n, os.path.basename(sys.argv[0]), args.db))
 
     if args.seed:
         n = store.put(SEED.items(), "seed", args.lang)
@@ -1319,7 +1458,7 @@ def main():
         print("Moteurs   : %s" % tr.describe())
 
     if not any([args.seed, args.extract, args.fill, args.export, args.imp,
-                args.stats, args.usage, args.test]):
+                args.stats, args.usage, args.test, args.renormalize]):
         p.print_help()
 
 
