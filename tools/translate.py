@@ -581,6 +581,56 @@ SEED = {
     "pain de campagne": "country bread",
     "feuilles de brick": "brick pastry sheets",
     "brick": "brick pastry",
+    # --------------------------------------------------------------------
+    # Troisième passe (156 889 fiches, couverture 69 %). Ceux-ci sont écrits
+    # à la main plutôt que laissés à --fill parce qu'une traduction
+    # automatique s'y trompe de façon prévisible : « beurre pommade » devient
+    # « pomade butter », « fumet » devient « aroma », « chocolat pâtissier »
+    # devient « pastry chocolate ». Ce sont des termes de métier, pas des
+    # mots ordinaires.
+    # --------------------------------------------------------------------
+    "beurre pommade": "softened butter",
+    "beurre ramolli": "softened butter",
+    "beurre non salé": "unsalted butter",
+    "noix de beurre": "knob of butter",
+    "filet d'huile d'olive": "drizzle of olive oil",
+    "huile végétale": "vegetable oil",
+    "sucre poudre": "caster sugar",
+    "chocolat pâtissier": "cooking chocolate",
+    "pépites de chocolat": "chocolate chips",
+    "potimarron": "red kuri squash",
+    "fumet de poisson": "fish stock",
+    "bouillon de poulet": "chicken stock",
+    "bûche de chèvre": "goat's cheese log",
+    "fromage de chèvre frais": "fresh goat's cheese",
+    "fines herbes": "mixed herbs",
+    "eau de fleur d'oranger": "orange blossom water",
+    "fleur d'oranger": "orange blossom water",
+    "vinaigre de xérès": "sherry vinegar",
+    "moutarde à l'ancienne": "wholegrain mustard",
+    "spéculoos": "speculoos biscuits",
+    "nutella": "Nutella",
+    "foie gras": "foie gras",
+    "eau tiède": "lukewarm water",
+    "coriandre fraîche": "fresh coriander",
+    "persil frais": "fresh parsley",
+    "persil ciselé": "chopped parsley",
+    "gingembre frais": "fresh ginger",
+    "vanille liquide": "vanilla extract",
+    "vanille en poudre": "vanilla powder",
+    "curry en poudre": "curry powder",
+    "lait écrémé": "skimmed milk",
+    "tomates séchées": "sun-dried tomatoes",
+    "tomate concassée": "chopped tomatoes",
+    "asperges vertes": "green asparagus",
+    "oignons émincés": "sliced onions",
+    "crevettes roses": "pink prawns",
+    "haricots rosés": "pinto beans",
+    "flocons d'avoine": "rolled oats",
+    "jus de citron vert": "lime juice",
+    "zeste de citron vert": "lime zest",
+    "épices": "spices",
+    "liqueur": "liqueur",
 }
 
 
