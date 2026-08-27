@@ -106,6 +106,18 @@ LIGATURES = {"œ": "oe", "Œ": "oe", "æ": "ae", "Æ": "ae"}
 # terme.
 PLURAL_MARK = re.compile(r"\((?:s|x|es)\)", re.IGNORECASE)
 
+# Pluriel ordinaire : « échalotes » et « échalote » sont le même produit, et le
+# catalogue emploie les deux au gré des sites.
+#
+# La règle n'a pas à être linguistiquement juste, seulement IDENTIQUE des deux
+# côtés : « ananas » devient « anana » et « gros » devient « gro », sans que ça
+# gêne, puisque le lexique est replié pareil. Le seul vrai risque serait de
+# réunir deux ingrédients distincts, ce qui ne se produit pas en cuisine.
+#
+# La lookbehind impose au moins trois caractères devant, donc quatre en tout :
+# sans elle « jus » deviendrait « ju » et « pas » « pa ».
+PLURAL_WORD = re.compile(r"(?<=\w{3})[sx]\b")
+
 
 def norm(s):
     """Clé du lexique.
@@ -124,7 +136,13 @@ def norm(s):
                          de l'huile d'olive ratent — plus de 30 000 occurrences.
       ligatures          « Œuf(s) », « jaune d’œuf »
       marques de pluriel « Œuf(s) » et « Œufs » sont le même ingrédient
-      ponctuation        « Sel, poivre » et « Sel poivre » aussi
+      pluriel ordinaire  « échalotes » et « échalote » aussi
+      parenthèses        « Crème fraîche (épaisse) » = « crème fraîche épaisse »
+      ponctuation        « Sel, poivre » et « Sel poivre »
+
+    Conséquence assumée : le singulier et le pluriel d'un ingrédient n'ont plus
+    qu'UNE entrée de lexique. C'est voulu — un nom d'ingrédient est une clé de
+    fusion pour la liste de courses, et deux formes valaient deux lignes.
     """
     s = str(s or "")
     for a in ("’", "‘", "‛", "`", "´"):
@@ -132,8 +150,12 @@ def norm(s):
     for lig, rep in LIGATURES.items():
         s = s.replace(lig, rep)
     s = strip_accents(s).lower()
+    # D'abord la marque de pluriel entre parenthèses, ENSUITE les parenthèses
+    # restantes : « Œuf(s) » perd son suffixe, « (épaisse) » garde son contenu.
     s = PLURAL_MARK.sub("", s)
+    s = re.sub(r"[()\[\]]", " ", s)
     s = re.sub(r"[,;:.]+", " ", s)
+    s = PLURAL_WORD.sub("", s)
     return re.sub(r"\s+", " ", s).strip()
 
 
@@ -211,6 +233,7 @@ SEED = {
     "sel poivre": "salt and pepper",
     "sel ou sel fin": "salt",
     "sel et poivre du moulin": "salt and freshly ground pepper",
+    "sel poivre du moulin": "salt and freshly ground pepper",
     "poivre du moulin": "freshly ground pepper",
     "sucre": "sugar",
     "sucre en poudre": "caster sugar",
@@ -266,11 +289,8 @@ SEED = {
     "coulis de tomate": "tomato passata",
     "tomates pelées": "peeled tomatoes",
     # Œufs et laitages
-    "oeuf": "egg",
     "oeufs": "eggs",
-    "jaune d'oeuf": "egg yolk",
     "jaunes d'oeufs": "egg yolks",
-    "blanc d'oeuf": "egg white",
     "blancs d'oeufs": "egg whites",
     "lait": "milk",
     "lait entier": "whole milk",
@@ -303,35 +323,26 @@ SEED = {
     "ricotta": "ricotta",
     "mascarpone": "mascarpone",
     # Légumes
-    "oignon": "onion",
     "oignons": "onions",
     "oignon rouge": "red onion",
     "oignon jaune": "yellow onion",
     "oignon blanc": "white onion",
     "échalote": "shallot",
     "ail": "garlic",
-    "gousse d'ail": "garlic clove",
     "gousses d'ail": "garlic cloves",
-    "carotte": "carrot",
     "carottes": "carrots",
-    "pomme de terre": "potato",
     "pommes de terre": "potatoes",
     "patate douce": "sweet potato",
-    "tomate": "tomato",
     "tomates": "tomatoes",
     "tomates cerises": "cherry tomatoes",
-    "courgette": "courgette",
     "courgettes": "courgettes",
     "aubergine": "aubergine",
     "poivron": "bell pepper",
     "poivron rouge": "red pepper",
     "poivron vert": "green pepper",
     "poivron jaune": "yellow pepper",
-    "champignon": "mushroom",
     "champignons": "mushrooms",
     "champignons de paris": "button mushrooms",
-    "champignon de paris": "button mushroom",
-    "poireau": "leek",
     "poireaux": "leeks",
     "céleri": "celery",
     "céleri-rave": "celeriac",
@@ -410,7 +421,6 @@ SEED = {
     "ras el hanout": "ras el hanout",
     # Viandes et poissons
     "poulet": "chicken",
-    "blanc de poulet": "chicken breast",
     "blancs de poulet": "chicken breasts",
     "filet de poulet": "chicken breast",
     "cuisse de poulet": "chicken thigh",
@@ -429,7 +439,6 @@ SEED = {
     "jambon": "ham",
     "jambon blanc": "cooked ham",
     "jambon cru": "cured ham",
-    "saucisse": "sausage",
     "saucisses": "sausages",
     "saucisson": "saucisson",
     "chorizo": "chorizo",
@@ -503,13 +512,13 @@ SEED = {
     "cube de bouillon": "stock cube",
     "fond de veau": "veal stock",
     "vin blanc": "white wine",
+    "vin blanc sec": "dry white wine",
     "vin rouge": "red wine",
     "bière": "beer",
     "cidre": "cider",
     "rhum": "rum",
     "cognac": "cognac",
     # Fruits
-    "pomme": "apple",
     "pommes": "apples",
     "poire": "pear",
     "banane": "banana",
@@ -537,7 +546,65 @@ SEED = {
     "pruneaux": "prunes",
     "rhubarbe": "rhubarb",
     "fruits rouges": "red berries",
+    # --------------------------------------------------------------------
+    # Deuxième passe, tirée d'un --extract sur le catalogue réel (154 789
+    # fiches) : les plus fréquents des manquants une fois la normalisation
+    # corrigée. Tous vérifiés à la main.
+    # --------------------------------------------------------------------
+    "oeufs entiers": "whole eggs",
+    "jaunes d'oeufs battus": "beaten egg yolks",
+    "amandes en poudre": "ground almonds",
+    "cerneaux de noix": "walnut halves",
+    "café": "coffee",
+    "cannelle en poudre": "ground cinnamon",
+    "cumin en poudre": "ground cumin",
+    "gingembre en poudre": "ground ginger",
+    "crème chantilly": "whipped cream",
+    "crème": "cream",
+    "crème fleurette": "whipping cream",
+    "crème fraîche liquide": "single cream",
+    "crème liquide entière": "double cream",
+    "lait concentré sucré": "condensed milk",
+    "fromage frais": "soft cheese",
+    "chèvre frais": "fresh goat's cheese",
+    "lardons fumés": "smoked lardons",
+    "citron jaune": "lemon",
+    "jus d'orange": "orange juice",
+    "persil haché": "chopped parsley",
+    "menthe fraîche": "fresh mint",
+    "cerfeuil": "chervil",
+    "beurre tendre": "softened butter",
+    "miel liquide": "runny honey",
+    "huile de friture": "frying oil",
+    "blancs de poireaux": "leek whites",
+    "levure de boulangerie": "baker's yeast",
+    "pain de campagne": "country bread",
+    "feuilles de brick": "brick pastry sheets",
+    "brick": "brick pastry",
 }
+
+
+def _en_variants(phrase):
+    """Le terme anglais et ses formes de nombre voisines.
+
+    Le pendant, côté anglais, du repli de pluriel de norm(). Seul le dernier
+    mot varie : « red onion » / « red onions », jamais « reds onion ».
+    """
+    words = phrase.split()
+    if not words:
+        return [phrase]
+    last, head = words[-1], words[:-1]
+    alts = [last, last + "s", last + "es"]
+    if last.endswith("es") and len(last) > 4:
+        alts.append(last[:-2])
+    if last.endswith("s") and len(last) > 3:
+        alts.append(last[:-1])
+    out, seen = [], set()
+    for a in alts:
+        if a not in seen:
+            seen.add(a)
+            out.append(" ".join(head + [a]))
+    return out
 
 
 class TranslationUnavailable(Exception):
@@ -914,12 +981,21 @@ class TrStore:
                 phrase = " ".join(words[i : i + n])
                 if len(phrase) < 2:
                     continue
+                # Le lexique ne garde qu'une forme par ingrédient — « pommes »
+                # → « apples ». Sans replier aussi le pluriel ANGLAIS, celui
+                # qui tape « apple » ne trouverait rien. On essaie donc les
+                # variantes du dernier mot, ce qui ne coûte qu'un IN de plus.
+                alts = _en_variants(phrase.lower())
                 row = db.execute(
-                    "SELECT fr FROM lexicon WHERE lang=? AND lower(en)=? "
-                    # Le plus court d'abord : « onion » doit rendre « oignon »,
-                    # pas « oignon rouge ».
-                    "ORDER BY length(fr) LIMIT 1",
-                    (lang, phrase.lower()),
+                    "SELECT fr FROM lexicon WHERE lang=? AND lower(en) IN (%s) "
+                    # La correspondance EXACTE avant une variante de nombre :
+                    # « chicken breasts » vaut « blanc de poulet » et non
+                    # « filet de poulet », qui n'est là que par sa forme
+                    # singulière. Sans ce critère les deux sont à égalité de
+                    # longueur et c'est SQLite qui tranche, donc personne.
+                    "ORDER BY (lower(en) <> ?), length(fr) LIMIT 1"
+                    % ",".join("?" * len(alts)),
+                    [lang] + alts + [phrase.lower()],
                 ).fetchone()
                 if row:
                     out.append(row[0])

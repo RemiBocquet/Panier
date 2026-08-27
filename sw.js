@@ -1,5 +1,5 @@
 // Panier — service worker
-const VERSION = 'panier-v3.2.1';
+const VERSION = 'panier-v3.2.2';
 const SHELL_CACHE = 'panier-shell-' + VERSION;
 const STATIC_CACHE = 'panier-static-v1';
 // PAN-3 : les bibliotheques sont desormais servies par l'application elle-meme.

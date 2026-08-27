@@ -72,10 +72,17 @@ from urllib.parse import parse_qs, urlparse
 # Voisin de ce fichier. L'import est tolérant à dessein : quelqu'un qui n'a pas
 # besoin de l'anglais doit pouvoir lancer le service avec le seul recipe-server.py
 # dans les mains, comme avant.
+#
+# OSError autant qu'ImportError, et ce n'est pas de la prudence gratuite : un
+# translate.py présent mais illisible (déployé en root sous /var/www, par
+# exemple) fait lever PermissionError — un OSError, qu'« except ImportError »
+# laisse passer. Le service planterait au démarrage au lieu de faire ce pour
+# quoi ce garde-fou existe : servir le français et se taire.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import translate as tr_mod
-except ImportError:  # pragma: no cover
+except (ImportError, OSError) as _e:  # pragma: no cover
+    sys.stderr.write("translate.py indisponible (%s) : pas de traduction.\n" % _e)
     tr_mod = None
 
 # Origines autorisées à appeler ce service depuis un navigateur. Même liste que
