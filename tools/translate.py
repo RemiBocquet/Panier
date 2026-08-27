@@ -203,6 +203,12 @@ UNITS_EN = {
     "poignée": "handful",
     "bâton": "stick",
     "goutte": "drop",
+    # Ajoutées en même temps qu'elles l'ont été au moissonneur : sans elles,
+    # « 2 cube · bouillon de volaille » resterait à moitié français.
+    "cube": "cube",
+    "rouleau": "roll",
+    "zeste": "zest",
+    "noix": "knob",
 }
 
 # --------------------------------------------------------------------------
