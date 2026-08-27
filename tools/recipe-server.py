@@ -565,13 +565,33 @@ class Handler(BaseHTTPRequestHandler):
             # L'index est français ; un anglophone tape « chicken ». Sans ce
             # passage par le lexique en sens inverse, sa recherche ne rendrait
             # rien du tout et le catalogue lui paraîtrait vide.
+            cands = tr_mod.search_queries(self.store, q, lang) if lang else [q]
+
+            # Le lexique n'a RIEN su traduire. Pour un anglophone, essayer la
+            # saisie brute en premier est alors un mauvais pari : elle ne
+            # ramène que les titres français contenant par hasard le mot
+            # anglais — « waffle » rendait des recettes de gaufres écrites
+            # « waffle », jamais celles écrites « gaufre ». Et comme elle rend
+            # QUELQUE CHOSE, aucun repli ne se déclenchait derrière. On demande
+            # donc au moteur avant, pas après.
+            if lang and cands == [q]:
+                fr = tr_mod.translated_query(self.store, self.translator, q, lang)
+                if fr:
+                    cands = [fr, q]
+
             results = []
-            for cand in (
-                tr_mod.search_queries(self.store, q, lang) if lang else [q]
-            ):
+            for cand in cands:
                 results = self.catalog.search(cand, limit, site)
                 if results:
                     break
+
+            # Les pistes du lexique ont toutes échoué : le moteur en dernier
+            # ressort. Le second appel ne coûte rien de plus, la traduction
+            # d'une requête étant gardée dès la première fois.
+            if lang and not results:
+                fr = tr_mod.translated_query(self.store, self.translator, q, lang)
+                if fr and fr not in cands:
+                    results = self.catalog.search(fr, limit, site)
 
             # Chaque résultat repart avec son laissez-passer : c'est la seule
             # façon d'obtenir une fiche complète ensuite.
@@ -668,6 +688,92 @@ location /api/recipes/ {
 """
 
 
+def check(args):
+    """Dit, en une commande, pourquoi la traduction ne marche pas.
+
+    Elle échoue en silence par construction — une panne de traduction ne doit
+    jamais empêcher de servir le français — et c'est très bien pour
+    l'utilisateur, très pénible pour qui installe. Ce mode dit tout haut ce que
+    le service constate tout bas.
+    """
+    ok = lambda b: "OK  " if b else "NON "
+    print("Script exécuté   : %s" % os.path.abspath(sys.argv[0]))
+    print("                   (à comparer avec l'ExecStart de l'unité systemd :")
+    print("                    systemctl cat panier-catalog | grep ExecStart)")
+    print()
+
+    print("%s catalogue        %s" % (ok(os.path.exists(args.db)), args.db))
+    if not os.path.exists(args.db):
+        return
+    try:
+        cat = Catalog(args.db)
+        st = cat.stats()
+        print("%s index            %d recettes, moteur %s"
+              % (ok(True), st["total"], st["engine"]))
+    except SystemExit as e:
+        print("NON  index            %s" % e)
+        return
+
+    print("%s module translate %s"
+          % (ok(tr_mod is not None),
+             "importé" if tr_mod else "absent ou illisible"))
+    if tr_mod is None:
+        return
+
+    cache = tr_mod.store_path(args.db)
+    try:
+        store = tr_mod.TrStore(cache)
+        s = store.stats("en")
+        nq = store._db().execute("SELECT COUNT(*) FROM query_tr").fetchone()[0]
+        print("%s cache            %s" % (ok(True), cache))
+        print("                   lexique %d, recettes %d, titres %d, requêtes %d"
+              % (s["lexicon"], s["recipes"], s["titles"], nq))
+        if s["lexicon"] == 0:
+            print("     ⚠ lexique vide : python3 tools/translate.py --db … --seed")
+        n = len(store.stale("en"))
+        if n:
+            print("     ⚠ %d clés périmées : translate.py --db … --renormalize" % n)
+    except Exception as e:
+        print("NON  cache            %s" % e)
+        print("     → c'est CE défaut qui fait servir le français en silence.")
+        return
+
+    tr = tr_mod.Translator.from_env(args.db, args.target_lang)
+    keyfile = args.db + ".deepl"
+    src = ("$PANIER_DEEPL_KEY" if os.environ.get("PANIER_DEEPL_KEY")
+           else keyfile if os.path.exists(keyfile) else None)
+    print("%s clé DeepL        %s" % (ok(bool(tr.deepl_key)), src or "introuvable"))
+    if src == keyfile:
+        m = os.stat(keyfile).st_mode & 0o777
+        print("                   droits %o%s" % (m, "" if m == 0o600 else "  (attendu 600)"))
+    print("%s LibreTranslate   %s" % (ok(bool(tr.libre_url)), tr.libre_url or "non configuré"))
+
+    if not tr.available():
+        print("\n→ Aucun moteur : le service répondra en français, sans erreur.")
+        return
+
+    print("\nEssai réel (« blanc de poulet », « waffle ») :")
+    try:
+        out, engine = tr.translate(["blanc de poulet", "waffle"],
+                                   context=tr_mod.ING_CONTEXT)
+        print("  %s / %s   [moteur : %s]" % (out[0], out[1], engine))
+    except Exception as e:
+        print("  ÉCHEC : %s" % e)
+        print("  → c'est CE défaut qui fait servir le français.")
+        return
+    try:
+        u = tr.usage()
+        if u and u.get("character_limit"):
+            print("  Quota DeepL : %d / %d (%.1f %%)"
+                  % (u["character_count"], u["character_limit"],
+                     100.0 * u["character_count"] / u["character_limit"]))
+    except Exception as e:
+        print("  Quota DeepL illisible : %s" % e)
+    print("\nTout est en place. Si l'application reçoit encore du français,")
+    print("c'est qu'elle n'envoie pas ?lang=en :")
+    print("  grep -c catalogLang <racine web>/index.html    # doit valoir 3")
+
+
 def install_help(args):
     print(
         SYSTEMD_UNIT
@@ -718,6 +824,11 @@ def main():
         help="affiche l'unité systemd et le bloc nginx à copier",
     )
     p.add_argument(
+        "--check",
+        action="store_true",
+        help="diagnostique la traduction (index, cache, cle, essai reel) et quitte",
+    )
+    p.add_argument(
         "--rate",
         type=float,
         default=1.0,
@@ -752,6 +863,9 @@ def main():
 
     if args.install_help:
         return install_help(args)
+
+    if args.check:
+        return check(args)
 
     if not os.path.exists(args.db):
         raise SystemExit("Base introuvable : %s" % args.db)

@@ -904,6 +904,24 @@ CREATE TABLE IF NOT EXISTS title_tr(
   ts     INTEGER NOT NULL,
   PRIMARY KEY(id, lang)
 );
+
+-- Les requêtes de recherche traduites par le moteur.
+--
+-- Le lexique ne suffit pas ici, et c'est structurel : il recense des
+-- INGRÉDIENTS, alors que /search cherche dans des TITRES. « waffle » n'y
+-- trouve pas « gaufre » — une gaufre n'est pas un ingrédient — et la recherche
+-- ne ramenait alors que les rares titres français contenant le mot anglais.
+--
+-- Une table à part plutôt que le lexique : ce sont des traductions de saisie
+-- libre, pas des termes de référence, et elles n'ont rien à faire dans ce qui
+-- sert de clé aux listes de courses.
+CREATE TABLE IF NOT EXISTS query_tr(
+  q      TEXT NOT NULL,          -- saisie normalisée en minuscules
+  lang   TEXT NOT NULL,
+  fr     TEXT NOT NULL,
+  ts     INTEGER NOT NULL,
+  PRIMARY KEY(q, lang)
+);
 """
 
 
@@ -1105,6 +1123,20 @@ class TrStore:
         )
         db.commit()
 
+    def query_get(self, q, lang="en"):
+        row = self._db().execute(
+            "SELECT fr FROM query_tr WHERE q=? AND lang=?", (q.strip().lower(), lang)
+        ).fetchone()
+        return row[0] if row else None
+
+    def query_put(self, q, fr, lang="en"):
+        db = self._db()
+        db.execute(
+            "INSERT OR REPLACE INTO query_tr(q, lang, fr, ts) VALUES(?,?,?,?)",
+            (q.strip().lower(), lang, fr, int(time.time())),
+        )
+        db.commit()
+
     def stale(self, lang="en"):
         """Entrées dont la clé ne correspond plus à norm().
 
@@ -1219,6 +1251,44 @@ def search_queries(store, q, lang="en"):
 # --------------------------------------------------------------------------
 # Traduire une fiche
 # --------------------------------------------------------------------------
+QUERY_CONTEXT = (
+    "Nom d'un plat ou d'une recette de cuisine, saisi dans un moteur de "
+    "recherche. Répondre par le seul nom du plat."
+)
+
+
+def translated_query(store, tr, q, lang="en"):
+    """La saisie traduite en français par le moteur, mise en cache. Ne lève jamais.
+
+    Le dernier recours de /search, quand le lexique n'a rien su faire : lui ne
+    connaît que des ingrédients, et « waffle » est un plat. Une gaufre n'étant
+    l'ingrédient de rien, aucun lexique d'ingrédients ne la contiendra jamais —
+    c'est le moteur qu'il faut, pas une entrée de plus.
+
+    Appelé UNIQUEMENT lorsque les pistes gratuites n'ont rien rendu, et le
+    résultat est gardé : une requête n'est traduite qu'une fois dans la vie du
+    service. Les recherches qui aboutissent ne coûtent donc rien du tout.
+    """
+    q = (q or "").strip()
+    if not q or not tr:
+        return None
+    hit = store.query_get(q, lang)
+    if hit is not None:
+        return hit or None
+    try:
+        got, _ = tr.translate([q], context=QUERY_CONTEXT)
+    except TranslationUnavailable:
+        return None
+    except Exception as e:
+        sys.stderr.write("Traduction de la requête échouée : %s\n" % e)
+        return None
+    fr = (got[0] or "").strip()
+    # Le vide est mis en cache lui aussi : une requête que le moteur rend telle
+    # quelle ne doit pas être repayée à chaque fois qu'on la retape.
+    store.query_put(q, "" if fr.lower() == q.lower() else fr, lang)
+    return fr if fr.lower() != q.lower() else None
+
+
 ING_CONTEXT = (
     "Liste d'ingrédients d'une recette de cuisine française. "
     "Traduire chaque ligne comme un produit alimentaire."
