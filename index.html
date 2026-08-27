@@ -120,6 +120,9 @@ body.has-movebar .appbar{padding-top:0;height:var(--bar-h)}
 .btn-block{width:100%}
 .btn[disabled]{opacity:.6}
 .btn-row{display:flex;gap:10px;margin-top:14px}
+/* Les deux libellés de l’écran Recettes passent à la ligne sur un téléphone étroit :
+   sans ça, la seconde ligne se calerait à gauche sous une première centrée. */
+.btn-row .btn span{text-align:center;line-height:1.25}
 .empty{text-align:center;padding:46px 24px;color:var(--muted)}
 .empty .glyph{font-size:44px;margin-bottom:10px}
 .empty h3{font-family:var(--ff-display);color:var(--ink);font-size:19px;margin:0 0 6px}
@@ -308,8 +311,8 @@ nav.tabbar .badge{position:absolute;top:8px;left:calc(50% + 8px);min-width:17px;
 
   <section class="tab" id="tab-recettes">
     <div class="btn-row" style="margin-top:2px">
-      <button class="btn btn-primary btn-block" id="btn-import"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span data-i18n="Importer">Importer</span></button>
-      <button class="btn btn-ghost btn-block" id="btn-new"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="Nouvelle">Nouvelle</span></button>
+      <button class="btn btn-primary btn-block" id="btn-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span data-i18n="Chercher une recette">Chercher une recette</span></button>
+      <button class="btn btn-ghost btn-block" id="btn-create"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span data-i18n="Créer ma recette">Créer ma recette</span></button>
     </div>
     <div id="recettes-body"></div>
   </section>
@@ -2421,7 +2424,7 @@ function openValidatePlan(){
 
 function renderRecettes(){
   const body=$('#recettes-body');body.innerHTML='';
-  if(recipes.length===0){body.appendChild(emptyState('📖',T('Pas encore de recette'),T('Importe depuis un lien Marmiton ou Jow, depuis une capture d’écran, ou crée une recette à la main.'),null));return;}
+  if(recipes.length===0){body.appendChild(emptyState('📖',T('Pas encore de recette'),T('Cherche-la par son nom dans le catalogue, ou crée-la toi-même — à la main, depuis un lien ou depuis une photo.'),null));return;}
   body.appendChild(buildFilterBar());
   const wrap=el('div');wrap.id='rec-list';body.appendChild(wrap);
   refreshRecipeList();
@@ -2482,7 +2485,7 @@ $('#scrim').onclick=closeSheet;$('#sheet-close').onclick=closeSheet;
 function sectionEyebrow(label,count){const eb=el('div','section-eyebrow');eb.innerHTML=esc(label)+' <span class="count">· '+count+'</span>';return eb;}
 
 function openMealPicker(){
-  if(recipes.length===0){openSheet(T('Planifier un repas'),c=>{c.appendChild(emptyState('📖',T('Aucune recette'),T('Ajoute d’abord une recette pour pouvoir planifier un repas.'),{label:T('Importer une recette'),fn:()=>{closeSheet();openImport();}}));});return;}
+  if(recipes.length===0){openSheet(T('Planifier un repas'),c=>{c.appendChild(emptyState('📖',T('Aucune recette'),T('Ajoute d’abord une recette pour pouvoir planifier un repas.'),{label:T('Chercher une recette'),fn:()=>{closeSheet();openCatalogSearch();}}));});return;}
   openSheet(T('Choisir une recette'),c=>{
     // Recherche locale à la feuille : n'affecte pas les filtres de l'onglet Recettes.
     const se=el('div','fsearch');
@@ -2669,29 +2672,35 @@ function openRecipeDetail(r){
   });
 }
 
-/* Import : choix de la méthode */
-function openImport(prefillUrl){
-  openSheet(T('Importer une recette'),c=>{
-    const o1=el('button','opt');
-    o1.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12 19"/></svg></span><span class="tx"><b>'+esc(T('Depuis un lien'))+'</b><span>Marmiton, Jow, CuisineAZ, 750g</span></span>';
-    o1.onclick=()=>openImportLink(prefillUrl);
-    c.appendChild(o1);
-    const oj=el('button','opt');
-    oj.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><span class="tx"><b>'+esc(T('Rechercher une recette'))+'</b><span>'+esc(T('Par nom, dans le catalogue Marmiton, Jow, CuisineAZ et 750g'))+'</span></span>';
-    oj.onclick=()=>openCatalogSearch();
-    c.appendChild(oj);
-    const om=el('button','opt');
-    om.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span><span class="tx"><b>'+esc(T('Rechercher (TheMealDB)'))+'</b><span>'+esc(T('Par nom ou ingrédient (catalogue anglophone)'))+'</span></span>';
-    om.onclick=()=>openMealDbSearch();
-    c.appendChild(om);
-    const o2=el('button','opt');
-    o2.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span class="tx"><b>'+esc(T('Depuis une photo'))+'</b><span>'+esc(T('Capture d’écran ou photo d’un livre (lu en local)'))+'</span></span>';
-    o2.onclick=openImportPhoto;
-    c.appendChild(o2);
+/* « Créer ma recette » : tout ce qui ne sort pas du catalogue.
+
+   La recherche par nom n'est plus une entrée de ce menu : elle a son propre bouton, en
+   primaire. Elle couvre désormais l'immense majorité des cas, et lui faire traverser un
+   menu de cinq lignes pour l'atteindre revenait à la traiter comme une méthode parmi
+   d'autres. Ce qui reste ici a un point commun : la fiche est à fabriquer, que ce soit
+   à la main, depuis un lien, depuis une photo ou depuis un catalogue tiers.
+
+   `prefillUrl` reste transmis à l'import par lien. Le partage entrant, lui, ne passe pas
+   par ici : il appelle openImportLink() directement (voir le traitement de share_target). */
+function openCreateRecipe(prefillUrl){
+  openSheet(T('Créer ma recette'),c=>{
+    // La saisie à la main d'abord : c'est ce que le bouton annonce.
     const o3=el('button','opt');
     o3.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="tx"><b>'+esc(T('Saisie manuelle'))+'</b><span>'+esc(T('Créer ou coller une liste d’ingrédients'))+'</span></span>';
     o3.onclick=()=>{closeSheet();openRecipeForm({});};
     c.appendChild(o3);
+    const o1=el('button','opt');
+    o1.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12 19"/></svg></span><span class="tx"><b>'+esc(T('Depuis un lien'))+'</b><span>Marmiton, Jow, CuisineAZ, 750g</span></span>';
+    o1.onclick=()=>openImportLink(prefillUrl);
+    c.appendChild(o1);
+    const o2=el('button','opt');
+    o2.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span class="tx"><b>'+esc(T('Depuis une photo'))+'</b><span>'+esc(T('Capture d’écran ou photo d’un livre (lu en local)'))+'</span></span>';
+    o2.onclick=openImportPhoto;
+    c.appendChild(o2);
+    const om=el('button','opt');
+    om.innerHTML='<span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span><span class="tx"><b>'+esc(T('Rechercher (TheMealDB)'))+'</b><span>'+esc(T('Par nom ou ingrédient (catalogue anglophone)'))+'</span></span>';
+    om.onclick=()=>openMealDbSearch();
+    c.appendChild(om);
   });
 }
 
@@ -2810,6 +2819,17 @@ const DEFAULT_CATALOG='https://panier.remibocquet.fr/api/recipes';
 function catalogBase(){
   return ((settings.catalogUrl||'').trim()||DEFAULT_CATALOG).replace(/\/+$/,'');
 }
+/* Le catalogue est français ; l'application ne l'est pas toujours. `lang=en` fait
+   traduire par le serveur (tools/translate.py) : lexique figé pour les ingrédients
+   et les unités — la liste de courses fusionne par nom, elle ne survivrait pas à
+   une traduction qui varie — et traduction automatique pour le titre et les étapes.
+
+   Lu à l'appel et non figé au chargement : LANG change en cours de session, comme
+   le rappelle le commentaire en tête de la section i18n.
+
+   Un serveur qui ignore ce paramètre répond simplement en français. C'est le cas
+   d'une instance qui n'a pas de moteur configuré, et ce n'est pas une erreur. */
+function catalogLang(){return LANG==='fr'?'':'&lang='+encodeURIComponent(LANG);}
 /* Lecture d'une réponse du catalogue.
    Une réponse non-JSON est le symptôme d'un service absent ou mal relayé : le
    serveur web répond alors sa propre page (accueil, 404, ou erreur 502), et
@@ -2825,7 +2845,7 @@ async function catalogJson(r){
   return j;
 }
 async function catalogSearch(q,limit){
-  const u=catalogBase()+'/search?q='+encodeURIComponent(q)+'&limit='+(limit||20);
+  const u=catalogBase()+'/search?q='+encodeURIComponent(q)+'&limit='+(limit||20)+catalogLang();
   const j=await catalogJson(await fetch(u,{headers:{'Accept':'application/json'}}));
   return Array.isArray(j.results)?j.results:[];
 }
@@ -2834,10 +2854,16 @@ async function catalogSearch(q,limit){
    au compteur, de 1 à 180 000, sans jamais passer par une recherche. */
 async function catalogRecipe(id,token){
   const j=await catalogJson(await fetch(catalogBase()+'/recipe?id='+encodeURIComponent(id)
-                      +'&t='+encodeURIComponent(token||''),
+                      +'&t='+encodeURIComponent(token||'')+catalogLang(),
                       {headers:{'Accept':'application/json'}}));
   if(!j.recipe)throw new Error(T('Recette introuvable dans le catalogue.'));
-  return sanitizeRecipe(j.recipe);
+  const rec=sanitizeRecipe(j.recipe);
+  /* Le serveur dit la langue qu'il a RÉELLEMENT servie. Quota de traduction
+     épuisé ou moteur à l'arrêt, il rend le français plutôt qu'une erreur — ce
+     qui est le bon choix, mais laisserait sinon l'utilisateur devant une fiche
+     inexplicablement française. On le signale plutôt que de le laisser deviner. */
+  rec.untranslated=!!(LANG!=='fr'&&j.lang&&j.lang!==LANG);
+  return rec;
 }
 /* Ajout direct à la bibliothèque, sans passer par le formulaire : la fiche du
    catalogue est déjà complète, et l'intérêt de cet écran est d'en ajouter
@@ -2857,7 +2883,7 @@ async function addCatalogRecipe(rec){
   return nr;
 }
 function openCatalogSearch(prefill){
-  openSheet(T('Rechercher une recette'),c=>{
+  openSheet(T('Chercher une recette'),c=>{
     const hint=el('div','hint');
     hint.innerHTML=T('🔎 Cherche par nom dans le catalogue (Marmiton, Jow, CuisineAZ, 750g). Tape sur un résultat pour l’ajouter directement à tes recettes.');
     hint.style.marginBottom='10px';c.appendChild(hint);
@@ -2930,7 +2956,10 @@ function catalogRow(h){
         go.textContent='✓';go.style.color='var(--leaf)';
         row.style.opacity='.65';
         renderRecettes();
-        toast(T('« {n} » ajoutée',{n:added.name}));
+        // Un seul message : deux toasts d'affilée s'écraseraient l'un l'autre.
+        toast(rec.untranslated
+          ? T('« {n} » ajoutée, en français : la traduction est indisponible.',{n:added.name})
+          : T('« {n} » ajoutée',{n:added.name}));
       }else{
         go.textContent='=';go.style.color='var(--muted)';
         row.style.opacity='.65';
@@ -4153,10 +4182,10 @@ const TOUR_STEPS=[
    text:'Recettes, stock, repas et courses sont reliés entre eux. On fait un tour rapide des boutons essentiels. Tape sur les éléments encadrés pour avancer.'},
   {kind:'tap',sel:'nav.tabbar button[data-tab="recettes"]',title:'Tes recettes',
    text:'Commence ici : c’est ta bibliothèque de recettes. Tape sur « Recettes ».'},
-  {kind:'tap',tab:'recettes',sel:'#btn-import',after:'sheet',title:'Importer une recette',
-   text:'Depuis un lien (Marmiton, Jow, CuisineAZ, 750g...), une recherche, ou une photo. Tape sur « Importer ».'},
-  {kind:'tap',tab:'recettes',sel:'#btn-new',after:'sheet',title:'...ou à la main',
-   text:'Pas de lien sous la main ? Crée une recette vierge : nom, ingrédients, étapes. Tape sur « Nouvelle ».'},
+  {kind:'tap',tab:'recettes',sel:'#btn-search',after:'sheet',title:'Chercher une recette',
+   text:'Plus de 140 000 recettes Marmiton, Jow, CuisineAZ et 750g, trouvées par leur nom. Un appui sur un résultat l’ajoute à ta bibliothèque. Tape sur « Chercher une recette ».'},
+  {kind:'tap',tab:'recettes',sel:'#btn-create',after:'sheet',title:'...ou écris la tienne',
+   text:'Ta recette de famille, un lien, la photo d’une page de livre : tout ce qui n’est pas au catalogue passe par ici. Tape sur « Créer ma recette ».'},
   {kind:'tap',sel:'nav.tabbar button[data-tab="repas"]',title:'Tes repas',
    text:'Planifie une recette ici : elle attend d’être validée, sans rien pousser dans les courses. Tape sur « Repas ».'},
   {kind:'tap',sel:'nav.tabbar button[data-tab="stock"]',title:'Ton stock',
@@ -4301,13 +4330,18 @@ $('#qa-input').addEventListener('keydown',e=>{if(e.key==='Enter')quickAdd();});
 $('#btn-settings').onclick=openSettings;
 $('#btn-help').onclick=openTutorial;
 $('#btn-feedback').onclick=openFeedback;
-$('#btn-import').onclick=()=>openImport();
-$('#btn-new').onclick=()=>openRecipeForm({});
+$('#btn-search').onclick=()=>openCatalogSearch();
+$('#btn-create').onclick=()=>openCreateRecipe();
 
 /* Nouveautés
    Affiché automatiquement après une mise à jour (settings.lastSeenVersion diffère de la
    version courante), jamais au tout premier lancement qui a déjà son tutoriel. */
 const CHANGELOG=[
+  {version:'3.2.0',date:'2026-08-27',items:[
+    'La recherche par nom est désormais directement sur le bouton « Chercher une recette » de l’écran Recettes.',
+    'Le bouton « Nouvelle » devient « Créer ma recette » et rassemble la saisie à la main, l’import depuis un lien, la photo (OCR) et TheMealDB.',
+    'Nouveau : en anglais, les recettes du catalogue arrivent traduites. La recherche comprend l’anglais aussi.',
+  ]},
   {version:'3.1.1',date:'2026-08-26',items:[
     'Correction : La recherche de recette par nom ne fonctionnait pas correctement.'
   ]},
@@ -4394,7 +4428,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='3.1.1';
+const APP_VERSION='3.2.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -4547,7 +4581,7 @@ const EN={
   '{n} élément reçu':['{n} item received','{n} items received'],
   '{n} élément sauvegardé':['{n} item backed up','{n} items backed up'],
   '(partiellement)':'(partly)',
-  '...ou à la main':'...or by hand',
+  '...ou écris la tienne':'...or write your own',
   '200 g de farine\n2 œufs\n1 pincée de sel':'200 g flour\n2 eggs\n1 pinch of salt',
   '<b>Ne désinstalle rien tant que tu n’as pas vérifié.</b> Désinstaller l’ancienne application efface définitivement ses données et si le transfert avait échoué, il n’y aurait plus rien à récupérer.':'<b>Do not uninstall anything before you have checked.</b> Uninstalling the old app erases its data for good and if the transfer had failed, there would be nothing left to recover.',
   '<b>Scanne ce code</b> avec l’appareil photo du téléphone : il ouvrira la nouvelle adresse et récupérera tout automatiquement.':'<b>Scan this code</b> with the phone’s camera: it will open the new address and fetch everything automatically.',
@@ -4637,7 +4671,7 @@ const EN={
   'Dans le panier':'In the basket',
   'Date':'Date',
   'Depuis un lien':'From a link',
-  'Depuis un lien (Marmiton, Jow, CuisineAZ, 750g...), une recherche, ou une photo. Tape sur « Importer ».':'From a link (Marmiton, Jow, CuisineAZ, 750g...), a search, or a photo. Tap “Import”.',
+  'Plus de 140 000 recettes Marmiton, Jow, CuisineAZ et 750g, trouvées par leur nom. Un appui sur un résultat l’ajoute à ta bibliothèque. Tape sur « Chercher une recette ».':'Over 140,000 recipes from Marmiton, Jow, CuisineAZ and 750g, found by name. Tapping a result adds it to your library. Tap “Search for a recipe”.',
   'Depuis une photo':'From a photo',
   'Dernière synchro réussie : {date}':'Last successful sync: {date}',
   'Deux usages : <b>un ticket de caisse</b> (le plus fiable, un produit par ligne) ou <b>une étagère de produits secs</b> (étiquettes imprimées). La lecture se fait sur ton téléphone, rien n’est envoyé.<br><br>⚠️ Les fruits et légumes en vrac ne portent aucun texte : ils ne seront pas détectés, ajoute-les à la main.':'Two uses: <b>a till receipt</b> (the most reliable, one product per line) or <b>a shelf of dry goods</b> (printed labels). Reading happens on your phone, nothing is sent.<br><br>⚠️ Loose fruit and veg carry no text: they will not be detected, add them by hand.',
@@ -4686,7 +4720,7 @@ const EN={
   'Image (URL)':'Image (URL)',
   'Image illisible':'Unreadable image',
   'Images sous licence libre (Creative Commons / domaine public), via <b>Wikimedia Commons</b>. Certaines demandent de créditer l’auteur affiché sous la vignette si tu republies la recette ailleurs.':'Freely licensed images (Creative Commons / public domain), via <b>Wikimedia Commons</b>. Some require crediting the author shown under the thumbnail if you republish the recipe elsewhere.',
-  'Importe depuis un lien Marmiton ou Jow, depuis une capture d’écran, ou crée une recette à la main.':'Import from a Marmiton or Jow link, from a screenshot, or write a recipe by hand.',
+  'Cherche-la par son nom dans le catalogue, ou crée-la toi-même — à la main, depuis un lien ou depuis une photo.':'Search for it by name in the catalogue, or create it yourself — by hand, from a link or from a photo.',
   'Importer':'Import',
   'Importer depuis un lien':'Import from a link',
   'Importer depuis une photo':'Import from a photo',
@@ -4765,7 +4799,7 @@ const EN={
   'Partager la recette':'Share recipe',
   'Partager mes recettes':'Share my recipes',
   'Partager par QR code':'Share by QR code',
-  'Pas de lien sous la main ? Crée une recette vierge : nom, ingrédients, étapes. Tape sur « Nouvelle ».':'No link handy? Create a blank recipe: name, ingredients, steps. Tap “New”.',
+  'Ta recette de famille, un lien, la photo d’une page de livre : tout ce qui n’est pas au catalogue passe par ici. Tape sur « Créer ma recette ».':'Your family recipe, a link, a photo of a book page: anything not in the catalogue goes through here. Tap “Create my recipe”.',
   'Pas encore de recette':'No recipes yet',
   'Passer le tutoriel':'Skip the tour',
   'Personnes':'Serves',
@@ -4990,11 +5024,17 @@ const EN={
   'Catalogue : {msg}':'Catalogue: {msg}',
   'Trop de recherches d’affilée, réessaie dans un instant.':'Too many searches in a row, try again in a moment.',
   'Recette introuvable dans le catalogue.':'Recipe not found in the catalogue.',
+  '« {n} » ajoutée, en français : la traduction est indisponible.':'“{n}” added, in French: translation is unavailable.',
   'Le catalogue est hébergé sur le serveur de l’application : il faut être en ligne pour y chercher. L’import par lien, lui, reste disponible.':'The catalogue lives on the app’s server, so searching it needs a connection. Importing from a link still works.',
   '« {n} » ajoutée':'“{n}” added',
   '« {n} » est déjà dans tes recettes':'“{n}” is already in your recipes',
   '{n} min':'{n} min',
   'Amélioration : les quantités abrégées « 2 c. à s. », « 1 c. à c. » et « 1 branche de thym » sont maintenant reconnues à l’import.':'Improved: the shorthand quantities “2 c. à s.”, “1 c. à c.” and “1 branche de thym” are now recognised on import.',
+  'Chercher une recette':'Search for a recipe',
+  'Créer ma recette':'Create my recipe',
+  'La recherche par nom est désormais directement sur le bouton « Chercher une recette » de l’écran Recettes.':'Searching by name now sits straight on the “Search for a recipe” button of the Recipes screen.',
+  'Le bouton « Nouvelle » devient « Créer ma recette » et rassemble la saisie à la main, l’import depuis un lien, la photo (OCR) et TheMealDB.':'The “New” button becomes “Create my recipe” and gathers manual entry, importing from a link, the photo (OCR) and TheMealDB.',
+  'Nouveau : en anglais, les recettes du catalogue arrivent traduites. La recherche comprend l’anglais aussi.':'New: in English, catalogue recipes now arrive translated. Search understands English too.',
 };
 /* Les mots-clés de péremption tirent leur libellé anglais de leur premier alias : inutile
    de répéter ici les 150 lignes de SHELF_ALIASES. */
@@ -5023,7 +5063,7 @@ async function boot(){
   const shared=q.get('shared')||q.get('text')||'';
   const m=shared.match(/https?:\/\/\S+/);
   if(m){setTab('recettes');openImportLink(m[0]);}
-  else if(q.get('action')==='import'){setTab('recettes');openImport();}
+  else if(q.get('action')==='import'){setTab('recettes');openCatalogSearch();}
   else if(q.get('syncSecret')){await applySyncCodeFromUrl(q);}
   // Tout premier lancement : la langue d'abord, le tutoriel ensuite (dans cette langue).
   else if(!settings.lang){openLanguagePicker(()=>{if(!settings.tutorialSeen)openTutorial();});}

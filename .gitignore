@@ -6,4 +6,5 @@ __pycache__/
 *.sqlite.secret
 *.sqlite-wal
 *.sqlite-shm
-tools/
+tools/scrape-recipes.py
+tools/README.md

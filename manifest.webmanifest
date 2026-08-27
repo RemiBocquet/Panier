@@ -19,7 +19,7 @@
   "shortcuts": [
     { "name": "Liste de courses", "url": "./?tab=courses", "short_name": "Courses" },
     { "name": "Repas à faire", "url": "./?tab=repas", "short_name": "Repas" },
-    { "name": "Importer une recette", "url": "./?action=import", "short_name": "Importer" }
+    { "name": "Chercher une recette", "url": "./?action=import", "short_name": "Chercher" }
   ],
   "share_target": {
     "action": "./",

@@ -21,24 +21,35 @@ jamais au tout premier lancement.
 
 ## Les quatre façons d'ajouter une recette
 
-**Depuis un lien** — Recettes → Importer → Depuis un lien.
+L'écran Recettes n'a que deux boutons, et ils séparent les deux intentions réelles :
+**Chercher une recette** ouvre directement la recherche par nom dans le catalogue — c'est le
+chemin de loin le plus fréquent, il n'a donc pas de menu à traverser. **Créer ma recette**
+regroupe tout ce qui demande de fabriquer la fiche : à la main, depuis un lien, depuis une
+photo, ou via TheMealDB.
+
+**Depuis un lien** — Recettes → Créer ma recette → Depuis un lien.
 - Marmiton, CuisineAZ, 750g : lecture du JSON-LD `schema.org/Recipe` de la page.
 - Jow : **utilise le lien de la page web**, pas le lien de partage de l'appli.
   Ouvrez la recette sur `jow.com`, copiez l'URL de la forme `jow.com/recipes/<nom>-<id>`.
   Les liens `app.jow.com/...?recipeId=...` sont aussi tentés, mais Jow ne garantit pas leur
   résolution : si ça échoue, passez par le lien de page.
 
-**Rechercher une recette** — Recettes → Importer → Rechercher une recette.
-- Cherche par nom dans un catalogue d'environ 180 000 recettes moissonnées sur Marmiton,
+**Chercher une recette** — Recettes → Chercher une recette (bouton principal, sans menu).
+- Cherche par nom dans un catalogue de plus de 140 000 recettes moissonnées sur Marmiton,
   Jow, CuisineAZ et 750g, hébergé avec l'application. Un appui sur un résultat l'ajoute
   directement à vos recettes, sans passer par le formulaire ; la feuille reste ouverte pour
   en piocher plusieurs de suite.
 - Une recette déjà présente (même nom) est signalée plutôt que dupliquée.
 - Le catalogue vit sur le serveur : il faut être en ligne. L'import par lien et l'OCR, eux,
   restent disponibles hors-ligne.
+- **En anglais**, le serveur traduit la fiche au moment de l'import, et la recherche accepte
+  l'anglais (« chicken » trouve les recettes de poulet). Les ingrédients et les unités passent
+  par un lexique figé, jamais par une traduction à la volée : la liste de courses fusionne par
+  nom, elle ne survivrait pas à un « blanc de poulet » rendu différemment d'une fois sur l'autre.
+  Si le serveur n'a pas de moteur configuré, la fiche arrive en français et l'appli le dit.
 - Constitution et hébergement du catalogue : voir [tools/README.md](tools/README.md).
 
-**Depuis une photo (OCR)** — Recettes → Importer → Depuis une photo.
+**Depuis une photo (OCR)** — Recettes → Créer ma recette → Depuis une photo.
 - Capture d'écran de n'importe quel site/appli, ou photo d'une page de livre.
 - Le texte est lu **localement sur le téléphone** (Tesseract.js en WebAssembly). Rien n'est envoyé
   à un serveur. Le moteur (~3 Mo) est téléchargé au premier usage puis mis en cache: ensuite l'OCR
@@ -47,7 +58,7 @@ jamais au tout premier lancement.
   la mise en page Jow où le nom et la quantité sont sur deux lignes séparées.
 - Les quantités reconnues sont **à vérifier** dans le formulaire avant enregistrement.
 
-**Saisie manuelle** — champ « Coller une liste » : une ligne = un ingrédient, analysée automatiquement.
+**Saisie manuelle** — Recettes → Créer ma recette → Saisie manuelle. Champ « Coller une liste » : une ligne = un ingrédient, analysée automatiquement.
 
 ### Image d'une recette
 
@@ -57,6 +68,41 @@ Commons ou domaine public. Aucune clé API à configurer, recherche anonyme depu
 Certaines licences (CC-BY) demandent de créditer l'auteur — nom et licence affichés sous chaque
 vignette — si la recette est republiée ailleurs.
 Seule l'URL de l'image choisie est conservée, comme pour une image importée depuis une recette web.
+
+### Les images ne s'affichent pas : penser au `img-src` du serveur
+
+L'application ne recopie jamais les photos, elle n'en garde que l'URL — qui pointe donc sur
+le CDN du site d'origine. Ces URL sont soumises au `Content-Security-Policy` renvoyé par le
+serveur qui sert `index.html` (bloc nginx du Pi, **hors dépôt**) : un hôte absent d'`img-src`
+donne une vignette vide, avec l'initiale de la recette à la place, et un refus CSP dans la
+console du navigateur. La recette elle-même, elle, est importée correctement — d'où le
+symptôme trompeur.
+
+Un hôte par source, à tenir à jour quand une source est ajoutée :
+
+| Source | Hôte des images |
+|---|---|
+| Marmiton | `assets.afcdn.com` |
+| CuisineAZ | `img.cuisineaz.com` |
+| 750g | `static.750g.com` |
+| Jow | `static.jow.fr` |
+| TheMealDB | `www.themealdb.com` |
+| Wikimedia Commons | `upload.wikimedia.org` |
+
+D'où la directive attendue (sur une seule ligne dans nginx, puis
+`sudo nginx -t && sudo systemctl reload nginx`) :
+
+```
+img-src 'self' data: blob: https://assets.afcdn.com https://img.cuisineaz.com
+        https://static.750g.com https://static.jow.fr https://www.themealdb.com
+        https://upload.wikimedia.org;
+```
+
+Marmiton et CuisineAZ appartiennent au même groupe mais ne partagent pas leur CDN : les deux
+hôtes sont nécessaires. À savoir aussi : ces deux sites servent une image d'attente quand la
+fiche n'a pas de photo (`.../default/default.jpg` chez CuisineAZ,
+`default-recipe-picture_80x80` chez Marmiton). La vignette reste donc terne pour ces
+recettes-là, même une fois l'hôte autorisé.
 
 ### Partager une recette
 

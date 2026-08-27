@@ -1,0 +1,1327 @@
+#!/usr/bin/env python3
+"""
+Panier — traduction du catalogue vers l'anglais.
+
+Sert à deux choses : c'est la bibliothèque qu'importe recipe-server.py pour
+répondre à `?lang=en`, et l'outil en ligne de commande qui entretient le
+lexique. Python 3.7+, bibliothèque standard uniquement.
+
+POURQUOI DEUX MÉCANISMES ET NON UN SEUL
+---------------------------------------
+Une recette contient deux natures de texte, et les traiter pareil serait une
+faute.
+
+  Le titre et les étapes sont de la prose. On les lit, on ne les compare
+  jamais entre elles. Une traduction automatique y est parfaite, et son
+  irrégularité — « faites revenir » rendu tantôt par « fry », tantôt par
+  « brown » — n'a aucune conséquence.
+
+  Les ingrédients et les unités, eux, sont des CLÉS. Le stock, les besoins des
+  repas et la liste de courses fusionnent par nom : c'est tout le mécanisme de
+  la validation de la semaine. Or une traduction automatique n'est pas
+  déterministe. « blanc de poulet » sort tantôt « chicken breast », tantôt
+  « white of chicken », et l'utilisateur se retrouve avec deux lignes distinctes
+  dans ses courses pour le même produit. La fusion casse silencieusement, et
+  c'est le genre de bogue qu'on ne comprend qu'après trois semaines.
+
+D'où la règle tenue par ce fichier : les ingrédients passent par un LEXIQUE, un
+dictionnaire figé fr → en. Le moteur de traduction ne sert qu'à REMPLIR ce
+lexique quand un terme inconnu se présente — jamais à traduire à la volée. Une
+fois écrit, un terme ne bouge plus : deux recettes contenant « blanc de poulet »
+donneront toujours la même chaîne anglaise, aujourd'hui et dans six mois.
+
+Le cache de recettes (recipe_tr) ne remplace PAS le lexique. Il évite de
+repayer la traduction d'une même fiche ; le lexique, lui, garantit la cohérence
+ENTRE fiches différentes. Seul le second protège la liste de courses.
+
+OÙ VIVENT LES DONNÉES
+---------------------
+Tout va dans `<db>.tr`, à côté du catalogue — jamais dedans. Le catalogue est
+ouvert en lecture seule par le service (le moissonneur peut tourner en même
+temps), et un cache est de toute façon jetable : supprimer `<db>.tr` ne perd
+rien qu'on ne puisse reconstruire, alors qu'une moisson représente des jours.
+
+LE MOTEUR
+---------
+DeepL en premier pour la qualité, LibreTranslate en secours. Le secours n'est
+pas décoratif : c'est lui qui fait que l'épuisement du quota DeepL ne casse
+rien. Et si les deux manquent, la fiche part en français plutôt qu'en erreur —
+une recette lisible dans la mauvaise langue vaut mieux qu'un écran d'échec.
+
+    export PANIER_DEEPL_KEY=…            # ou <db>.deepl, en 0600
+    export PANIER_LIBRETRANSLATE_URL=http://127.0.0.1:5000
+
+EN LIGNE DE COMMANDE
+--------------------
+    python3 tools/translate.py --db … --seed        # pose le lexique de base
+    python3 tools/translate.py --db … --extract     # ce qui manque, par fréquence
+    python3 tools/translate.py --db … --fill 500    # remplit les 500 plus fréquents
+    python3 tools/translate.py --db … --export t.tsv  # relecture à la main
+    python3 tools/translate.py --db … --import t.tsv
+    python3 tools/translate.py --db … --stats
+"""
+
+import argparse
+import collections
+import json
+import os
+import re
+import sqlite3
+import sys
+import threading
+import time
+import unicodedata
+import urllib.error
+import urllib.request
+
+TARGET_DEFAULT = "EN-GB"
+
+# DeepL accepte 50 textes par appel. On reste en dessous : la limite réelle est
+# aussi une taille de requête, et un ingrédient occasionnel très long ne doit
+# pas faire basculer tout le lot au-delà.
+BATCH = 40
+
+# Au-delà, ce n'est plus un nom d'ingrédient mais une phrase mal découpée par le
+# moissonneur. On la traduit quand même, mais on refuse de l'écrire au lexique :
+# elle n'a aucune chance de se représenter à l'identique, et n'y ferait que du
+# volume mort.
+LEXICON_MAX = 60
+
+
+def strip_accents(s):
+    return "".join(
+        c for c in unicodedata.normalize("NFD", str(s))
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def norm(s):
+    """Clé du lexique. Identique à celle de recipe-server.py, volontairement.
+
+    Sans accents et sans casse : « Oignon », « oignon » et « OIGNONS » ne
+    doivent pas occuper trois lignes ni recevoir trois traductions.
+    """
+    return re.sub(r"\s+", " ", strip_accents(str(s or "")).lower()).strip()
+
+
+# --------------------------------------------------------------------------
+# Les unités : une table, jamais de traduction automatique
+#
+# scrape-recipes.py ramène toutes les graphies rencontrées à une trentaine de
+# valeurs canoniques (UNITS, en haut de ce fichier-là). L'ensemble étant fermé
+# et connu, l'écrire à la main coûte dix minutes et rend le résultat exact et
+# stable pour toujours. Y envoyer un moteur de traduction serait payer pour
+# obtenir moins bien.
+#
+# Le système reste métrique : la cuisine britannique pèse en grammes, et
+# convertir en cups introduirait des arrondis dans des quantités qui servent
+# ensuite à calculer un manque de stock.
+# --------------------------------------------------------------------------
+UNITS_EN = {
+    "kg": "kg",
+    "g": "g",
+    "mg": "mg",
+    "l": "l",
+    "dl": "dl",
+    "cl": "cl",
+    "ml": "ml",
+    "oz": "oz",
+    "lb": "lb",
+    "c. à soupe": "tbsp",
+    "c. à café": "tsp",
+    "pincée": "pinch",
+    "gousse": "clove",
+    "tranche": "slice",
+    "sachet": "sachet",
+    "paquet": "packet",
+    "boîte": "tin",
+    "bocal": "jar",
+    "botte": "bunch",
+    "bouquet": "bouquet",
+    "brin": "sprig",
+    "feuille": "leaf",
+    "verre": "glass",
+    "tasse": "cup",
+    "pot": "pot",
+    "morceau": "piece",
+    "boule": "ball",
+    "poignée": "handful",
+    "bâton": "stick",
+    "goutte": "drop",
+}
+
+# --------------------------------------------------------------------------
+# Le lexique de départ
+#
+# Environ trois cents entrées écrites à la main : le noyau qu'on retrouve dans
+# la quasi-totalité des recettes françaises. La distribution des ingrédients est
+# très inégale — quelques centaines de termes couvrent l'essentiel des
+# occurrences, et la longue traîne est faite de variantes qu'on ne verra qu'une
+# fois. Ce noyau-là mérite d'être juste ; le reste peut venir de la machine.
+#
+# Ces clés sont écrites accentuées pour rester lisibles ; elles passent par
+# norm() au chargement.
+# --------------------------------------------------------------------------
+SEED = {
+    # Base
+    "sel": "salt",
+    "sel fin": "fine salt",
+    "gros sel": "coarse salt",
+    "fleur de sel": "fleur de sel",
+    "poivre": "pepper",
+    "poivre noir": "black pepper",
+    "poivre blanc": "white pepper",
+    "sel et poivre": "salt and pepper",
+    "sucre": "sugar",
+    "sucre en poudre": "caster sugar",
+    "sucre semoule": "caster sugar",
+    "sucre glace": "icing sugar",
+    "sucre roux": "brown sugar",
+    "sucre vanillé": "vanilla sugar",
+    "cassonade": "soft brown sugar",
+    "farine": "flour",
+    "farine de blé": "plain flour",
+    "farine t45": "plain flour",
+    "farine t55": "plain flour",
+    "farine de maïs": "cornmeal",
+    "beurre": "butter",
+    "beurre doux": "unsalted butter",
+    "beurre demi-sel": "salted butter",
+    "beurre salé": "salted butter",
+    "beurre mou": "softened butter",
+    "beurre fondu": "melted butter",
+    "margarine": "margarine",
+    "huile": "oil",
+    "huile d'olive": "olive oil",
+    "huile de tournesol": "sunflower oil",
+    "huile de colza": "rapeseed oil",
+    "huile d'arachide": "groundnut oil",
+    "huile de sésame": "sesame oil",
+    "vinaigre": "vinegar",
+    "vinaigre balsamique": "balsamic vinegar",
+    "vinaigre de vin": "wine vinegar",
+    "vinaigre de cidre": "cider vinegar",
+    "eau": "water",
+    "glaçons": "ice cubes",
+    "levure": "yeast",
+    "levure chimique": "baking powder",
+    "levure de boulanger": "baker's yeast",
+    "bicarbonate de soude": "bicarbonate of soda",
+    "maïzena": "cornflour",
+    "fécule de maïs": "cornflour",
+    "fécule de pomme de terre": "potato starch",
+    "chapelure": "breadcrumbs",
+    "gélatine": "gelatine",
+    "agar-agar": "agar-agar",
+    "miel": "honey",
+    "sirop d'érable": "maple syrup",
+    "confiture": "jam",
+    "moutarde": "mustard",
+    "moutarde de dijon": "Dijon mustard",
+    "mayonnaise": "mayonnaise",
+    "ketchup": "ketchup",
+    "sauce soja": "soy sauce",
+    "sauce tomate": "tomato sauce",
+    "concentré de tomate": "tomato purée",
+    "coulis de tomate": "tomato passata",
+    "tomates pelées": "peeled tomatoes",
+    # Œufs et laitages
+    "oeuf": "egg",
+    "oeufs": "eggs",
+    "jaune d'oeuf": "egg yolk",
+    "jaunes d'oeufs": "egg yolks",
+    "blanc d'oeuf": "egg white",
+    "blancs d'oeufs": "egg whites",
+    "lait": "milk",
+    "lait entier": "whole milk",
+    "lait demi-écrémé": "semi-skimmed milk",
+    "lait de coco": "coconut milk",
+    "crème de coco": "coconut cream",
+    "crème fraîche": "crème fraîche",
+    "crème fraîche épaisse": "thick crème fraîche",
+    "crème liquide": "single cream",
+    "crème entière": "double cream",
+    "crème épaisse": "thick cream",
+    "yaourt": "yoghurt",
+    "yaourt nature": "plain yoghurt",
+    "fromage": "cheese",
+    "fromage râpé": "grated cheese",
+    "fromage blanc": "fromage blanc",
+    "gruyère": "Gruyère",
+    "emmental": "Emmental",
+    "comté": "Comté",
+    "parmesan": "Parmesan",
+    "mozzarella": "mozzarella",
+    "chèvre": "goat's cheese",
+    "fromage de chèvre": "goat's cheese",
+    "roquefort": "Roquefort",
+    "bleu": "blue cheese",
+    "feta": "feta",
+    "ricotta": "ricotta",
+    "mascarpone": "mascarpone",
+    # Légumes
+    "oignon": "onion",
+    "oignons": "onions",
+    "oignon rouge": "red onion",
+    "oignon jaune": "yellow onion",
+    "oignon blanc": "white onion",
+    "échalote": "shallot",
+    "ail": "garlic",
+    "gousse d'ail": "garlic clove",
+    "gousses d'ail": "garlic cloves",
+    "carotte": "carrot",
+    "carottes": "carrots",
+    "pomme de terre": "potato",
+    "pommes de terre": "potatoes",
+    "patate douce": "sweet potato",
+    "tomate": "tomato",
+    "tomates": "tomatoes",
+    "tomates cerises": "cherry tomatoes",
+    "courgette": "courgette",
+    "courgettes": "courgettes",
+    "aubergine": "aubergine",
+    "poivron": "bell pepper",
+    "poivron rouge": "red pepper",
+    "poivron vert": "green pepper",
+    "poivron jaune": "yellow pepper",
+    "champignon": "mushroom",
+    "champignons": "mushrooms",
+    "champignons de paris": "button mushrooms",
+    "poireau": "leek",
+    "poireaux": "leeks",
+    "céleri": "celery",
+    "céleri-rave": "celeriac",
+    "navet": "turnip",
+    "chou": "cabbage",
+    "chou-fleur": "cauliflower",
+    "chou rouge": "red cabbage",
+    "chou de bruxelles": "Brussels sprout",
+    "brocoli": "broccoli",
+    "épinards": "spinach",
+    "haricots verts": "green beans",
+    "haricots blancs": "haricot beans",
+    "haricots rouges": "kidney beans",
+    "petits pois": "peas",
+    "lentilles": "lentils",
+    "pois chiches": "chickpeas",
+    "fèves": "broad beans",
+    "maïs": "sweetcorn",
+    "salade": "lettuce",
+    "laitue": "lettuce",
+    "roquette": "rocket",
+    "mâche": "lamb's lettuce",
+    "endive": "chicory",
+    "courge": "squash",
+    "potiron": "pumpkin",
+    "butternut": "butternut squash",
+    "betterave": "beetroot",
+    "radis": "radish",
+    "concombre": "cucumber",
+    "avocat": "avocado",
+    "fenouil": "fennel",
+    "artichaut": "artichoke",
+    "asperges": "asparagus",
+    "olives": "olives",
+    "olives noires": "black olives",
+    "olives vertes": "green olives",
+    "cornichons": "gherkins",
+    "câpres": "capers",
+    # Herbes et épices
+    "persil": "parsley",
+    "persil plat": "flat-leaf parsley",
+    "ciboulette": "chives",
+    "basilic": "basil",
+    "thym": "thyme",
+    "laurier": "bay leaf",
+    "feuille de laurier": "bay leaf",
+    "romarin": "rosemary",
+    "menthe": "mint",
+    "coriandre": "coriander",
+    "estragon": "tarragon",
+    "aneth": "dill",
+    "origan": "oregano",
+    "sauge": "sage",
+    "herbes de provence": "herbes de Provence",
+    "bouquet garni": "bouquet garni",
+    "curry": "curry powder",
+    "curcuma": "turmeric",
+    "cumin": "cumin",
+    "paprika": "paprika",
+    "piment": "chilli",
+    "piment d'espelette": "Espelette pepper",
+    "piment de cayenne": "cayenne pepper",
+    "cannelle": "cinnamon",
+    "muscade": "nutmeg",
+    "noix de muscade": "nutmeg",
+    "gingembre": "ginger",
+    "safran": "saffron",
+    "clou de girofle": "clove",
+    "anis étoilé": "star anise",
+    "vanille": "vanilla",
+    "gousse de vanille": "vanilla pod",
+    "extrait de vanille": "vanilla extract",
+    "cardamome": "cardamom",
+    "graines de sésame": "sesame seeds",
+    "quatre-épices": "mixed spice",
+    "ras el hanout": "ras el hanout",
+    # Viandes et poissons
+    "poulet": "chicken",
+    "blanc de poulet": "chicken breast",
+    "blancs de poulet": "chicken breasts",
+    "filet de poulet": "chicken breast",
+    "cuisse de poulet": "chicken thigh",
+    "escalope de poulet": "chicken escalope",
+    "boeuf": "beef",
+    "steak": "steak",
+    "steak haché": "beef mince",
+    "viande hachée": "minced meat",
+    "boeuf haché": "beef mince",
+    "porc": "pork",
+    "filet mignon": "pork tenderloin",
+    "échine de porc": "pork shoulder",
+    "lardons": "lardons",
+    "lard": "bacon",
+    "bacon": "bacon",
+    "jambon": "ham",
+    "jambon blanc": "cooked ham",
+    "jambon cru": "cured ham",
+    "saucisse": "sausage",
+    "saucisses": "sausages",
+    "saucisson": "saucisson",
+    "chorizo": "chorizo",
+    "merguez": "merguez",
+    "veau": "veal",
+    "agneau": "lamb",
+    "gigot d'agneau": "leg of lamb",
+    "canard": "duck",
+    "magret de canard": "duck breast",
+    "dinde": "turkey",
+    "lapin": "rabbit",
+    "poisson": "fish",
+    "saumon": "salmon",
+    "pavé de saumon": "salmon fillet",
+    "saumon fumé": "smoked salmon",
+    "cabillaud": "cod",
+    "colin": "hake",
+    "thon": "tuna",
+    "truite": "trout",
+    "crevettes": "prawns",
+    "moules": "mussels",
+    "noix de saint-jacques": "scallops",
+    "calamars": "squid",
+    "crabe": "crab",
+    "anchois": "anchovies",
+    "sardines": "sardines",
+    "surimi": "surimi",
+    # Féculents et boulangerie
+    "riz": "rice",
+    "riz basmati": "basmati rice",
+    "pâtes": "pasta",
+    "spaghetti": "spaghetti",
+    "tagliatelles": "tagliatelle",
+    "penne": "penne",
+    "lasagnes": "lasagne sheets",
+    "macaroni": "macaroni",
+    "semoule": "couscous",
+    "couscous": "couscous",
+    "boulgour": "bulgur wheat",
+    "quinoa": "quinoa",
+    "pain": "bread",
+    "pain de mie": "sliced white bread",
+    "baguette": "baguette",
+    "biscuits": "biscuits",
+    "pâte brisée": "shortcrust pastry",
+    "pâte feuilletée": "puff pastry",
+    "pâte sablée": "sweet shortcrust pastry",
+    "pâte à pizza": "pizza dough",
+    # Sucré
+    "chocolat": "chocolate",
+    "chocolat noir": "dark chocolate",
+    "chocolat au lait": "milk chocolate",
+    "chocolat blanc": "white chocolate",
+    "cacao": "cocoa",
+    "cacao en poudre": "cocoa powder",
+    "noix": "walnuts",
+    "noisettes": "hazelnuts",
+    "amandes": "almonds",
+    "amandes effilées": "flaked almonds",
+    "poudre d'amandes": "ground almonds",
+    "pignons de pin": "pine nuts",
+    "pistaches": "pistachios",
+    "raisins secs": "raisins",
+    "noix de coco": "coconut",
+    "noix de coco râpée": "desiccated coconut",
+    # Bouillons et alcools
+    "bouillon": "stock",
+    "bouillon de volaille": "chicken stock",
+    "bouillon de boeuf": "beef stock",
+    "bouillon de légumes": "vegetable stock",
+    "cube de bouillon": "stock cube",
+    "fond de veau": "veal stock",
+    "vin blanc": "white wine",
+    "vin rouge": "red wine",
+    "bière": "beer",
+    "cidre": "cider",
+    "rhum": "rum",
+    "cognac": "cognac",
+    # Fruits
+    "pomme": "apple",
+    "pommes": "apples",
+    "poire": "pear",
+    "banane": "banana",
+    "fraises": "strawberries",
+    "framboises": "raspberries",
+    "myrtilles": "blueberries",
+    "cerises": "cherries",
+    "abricots": "apricots",
+    "pêche": "peach",
+    "prunes": "plums",
+    "raisin": "grapes",
+    "orange": "orange",
+    "citron": "lemon",
+    "citron vert": "lime",
+    "jus de citron": "lemon juice",
+    "zeste de citron": "lemon zest",
+    "pamplemousse": "grapefruit",
+    "ananas": "pineapple",
+    "mangue": "mango",
+    "kiwi": "kiwi",
+    "melon": "melon",
+    "pastèque": "watermelon",
+    "figues": "figs",
+    "dattes": "dates",
+    "pruneaux": "prunes",
+    "rhubarbe": "rhubarb",
+    "fruits rouges": "red berries",
+}
+
+
+class TranslationUnavailable(Exception):
+    """Aucun moteur n'a pu répondre. L'appelant sert le français."""
+
+
+# --------------------------------------------------------------------------
+# Les moteurs
+# --------------------------------------------------------------------------
+def _post_json(url, payload, headers, timeout):
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="POST")
+    req.add_header("Content-Type", "application/json")
+    for k, v in headers.items():
+        req.add_header(k, v)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+class Translator:
+    """DeepL d'abord, LibreTranslate en secours.
+
+    Le secours n'est pas de la coquetterie : le palier gratuit de DeepL est
+    mensuel, et le jour où il tombe, tout un pan de l'application s'arrêterait
+    sans lui. Un LibreTranslate sur le Pi coûte un conteneur et rend le service
+    indépendant de l'extérieur — moins bon, mais toujours là.
+
+    L'ordre est délibérément figé. Alterner selon la charge ferait varier la
+    traduction d'un même terme d'un appel à l'autre, ce qui est exactement ce
+    que le lexique existe pour empêcher.
+    """
+
+    def __init__(
+        self,
+        deepl_key=None,
+        libre_url=None,
+        libre_key=None,
+        target=TARGET_DEFAULT,
+        timeout=20,
+    ):
+        self.deepl_key = (deepl_key or "").strip() or None
+        self.libre_url = (libre_url or "").strip().rstrip("/") or None
+        self.libre_key = (libre_key or "").strip() or None
+        self.target = target
+        self.timeout = timeout
+        # Une panne franche de DeepL (clé refusée, quota épuisé) ne doit pas être
+        # repayée d'un aller-retour réseau à chaque recette. On la retient un
+        # moment, puis on retente : un quota se renouvelle.
+        self._deepl_muted_until = 0.0
+        self._lock = threading.Lock()
+
+    @classmethod
+    def from_env(cls, db_path=None, target=TARGET_DEFAULT):
+        """Clés lues dans l'environnement, ou dans un fichier à côté de la base.
+
+        Le fichier suit exactement la convention du secret de signature de
+        recipe-server.py : rangé en 0600 près du SQLite, hors du dépôt. Une clé
+        DeepL est un moyen de paiement — elle n'a rien à faire dans git, et pas
+        davantage dans une ligne de commande que `ps` expose.
+        """
+        key = os.environ.get("PANIER_DEEPL_KEY", "")
+        if not key and db_path:
+            path = db_path + ".deepl"
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    key = f.read().strip()
+        return cls(
+            deepl_key=key,
+            libre_url=os.environ.get("PANIER_LIBRETRANSLATE_URL", ""),
+            libre_key=os.environ.get("PANIER_LIBRETRANSLATE_KEY", ""),
+            target=target,
+        )
+
+    def available(self):
+        return bool(self.deepl_key or self.libre_url)
+
+    def describe(self):
+        parts = []
+        if self.deepl_key:
+            parts.append("DeepL")
+        if self.libre_url:
+            parts.append("LibreTranslate (%s)" % self.libre_url)
+        return " puis ".join(parts) if parts else "aucun"
+
+    # -- DeepL ------------------------------------------------------------
+    def _deepl_host(self):
+        # Les clés du palier gratuit se terminent par « :fx » et ne répondent
+        # QUE sur api-free. Le deviner évite un réglage de plus à se tromper.
+        return (
+            "https://api-free.deepl.com"
+            if self.deepl_key.endswith(":fx")
+            else "https://api.deepl.com"
+        )
+
+    def _deepl(self, texts, context=None):
+        payload = {
+            "text": texts,
+            "source_lang": "FR",
+            "target_lang": self.target,
+        }
+        if context:
+            # `context` oriente la traduction sans être traduit lui-même. C'est
+            # ce qui fait la différence entre « blanc de poulet » → « chicken
+            # breast » et → « white of chicken » : hors contexte, un nom
+            # d'ingrédient isolé n'a pas de quoi lever l'ambiguïté.
+            payload["context"] = context
+        out = _post_json(
+            self._deepl_host() + "/v2/translate",
+            payload,
+            {"Authorization": "DeepL-Auth-Key " + self.deepl_key},
+            self.timeout,
+        )
+        return [t["text"] for t in out["translations"]]
+
+    def usage(self):
+        """Quota DeepL consommé, ou None si pas de clé."""
+        if not self.deepl_key:
+            return None
+        req = urllib.request.Request(self._deepl_host() + "/v2/usage")
+        req.add_header("Authorization", "DeepL-Auth-Key " + self.deepl_key)
+        with urllib.request.urlopen(req, timeout=self.timeout) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    # -- LibreTranslate ---------------------------------------------------
+    def _libre(self, texts):
+        payload = {
+            "q": texts,
+            "source": "fr",
+            "target": "en",
+            "format": "text",
+        }
+        if self.libre_key:
+            payload["api_key"] = self.libre_key
+        out = _post_json(
+            self.libre_url + "/translate", payload, {}, self.timeout
+        )
+        res = out.get("translatedText")
+        # L'API rend une liste pour une liste, une chaîne pour une chaîne. Les
+        # instances anciennes ne gèrent pas les listes : on retombe alors sur
+        # des appels un par un plutôt que de renoncer.
+        if isinstance(res, list):
+            return res
+        if len(texts) == 1 and isinstance(res, str):
+            return [res]
+        return [
+            _post_json(
+                self.libre_url + "/translate",
+                dict(payload, q=t),
+                {},
+                self.timeout,
+            )["translatedText"]
+            for t in texts
+        ]
+
+    # -- Façade -----------------------------------------------------------
+    def translate(self, texts, context=None):
+        """Traduit une liste de textes. Rend (résultats, nom du moteur).
+
+        Les chaînes vides ne partent pas sur le réseau : les étapes d'une
+        recette en contiennent régulièrement, et les envoyer coûterait des
+        caractères facturés pour rien.
+        """
+        texts = list(texts)
+        idx = [i for i, t in enumerate(texts) if (t or "").strip()]
+        if not idx:
+            return list(texts), "aucun"
+        payload = [texts[i] for i in idx]
+
+        out, engine = None, None
+        with self._lock:
+            deepl_ok = self.deepl_key and time.time() >= self._deepl_muted_until
+        if deepl_ok:
+            try:
+                out, engine = self._chunked(self._deepl, payload, context), "deepl"
+            except Exception as e:
+                # 456 = quota épuisé, 403 = clé refusée : inutile d'insister
+                # avant un moment. Le reste (réseau, 5xx) peut être passager,
+                # mais la mise en sourdine courte évite de s'acharner.
+                code = getattr(e, "code", None)
+                with self._lock:
+                    self._deepl_muted_until = time.time() + (
+                        3600 if code in (403, 456) else 60
+                    )
+                sys.stderr.write("DeepL indisponible (%s), repli.\n" % e)
+
+        if out is None and self.libre_url:
+            try:
+                out, engine = self._chunked(self._libre, payload), "libretranslate"
+            except Exception as e:
+                sys.stderr.write("LibreTranslate indisponible (%s).\n" % e)
+
+        if out is None:
+            raise TranslationUnavailable(self.describe())
+
+        merged = list(texts)
+        for i, t in zip(idx, out):
+            merged[i] = t
+        return merged, engine
+
+    def _chunked(self, fn, texts, *extra):
+        out = []
+        for i in range(0, len(texts), BATCH):
+            out.extend(fn(texts[i : i + BATCH], *extra))
+        if len(out) != len(texts):
+            raise ValueError("le moteur a rendu %d textes pour %d" % (len(out), len(texts)))
+        return out
+
+
+# --------------------------------------------------------------------------
+# Le magasin : lexique + cache
+# --------------------------------------------------------------------------
+STORE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS lexicon(
+  fr     TEXT NOT NULL,          -- clé normalisée par norm()
+  lang   TEXT NOT NULL,
+  en     TEXT NOT NULL,
+  source TEXT NOT NULL,          -- seed | manual | deepl | libretranslate
+  ts     INTEGER NOT NULL,
+  PRIMARY KEY(fr, lang)
+);
+-- Le sens inverse sert la recherche : l'utilisateur anglais tape « chicken »
+-- dans un index français. Un index sur `en` suffit, la table est petite.
+CREATE INDEX IF NOT EXISTS lexicon_en ON lexicon(lang, en);
+
+CREATE TABLE IF NOT EXISTS recipe_tr(
+  id     INTEGER NOT NULL,       -- = urls.rowid du catalogue
+  lang   TEXT NOT NULL,
+  json   TEXT NOT NULL,
+  engine TEXT NOT NULL,
+  ts     INTEGER NOT NULL,
+  PRIMARY KEY(id, lang)
+);
+
+-- Les titres à part : une recherche en rend vingt, dont dix-neuf ne seront
+-- jamais ouvertes. Les traduire entiers serait payer pour du texte que
+-- personne ne lira.
+CREATE TABLE IF NOT EXISTS title_tr(
+  id     INTEGER NOT NULL,
+  lang   TEXT NOT NULL,
+  title  TEXT NOT NULL,
+  ts     INTEGER NOT NULL,
+  PRIMARY KEY(id, lang)
+);
+"""
+
+
+class TrStore:
+    """Lexique et caches, dans `<db>.tr`.
+
+    Une connexion par fil, comme le Catalog : sqlite3 l'exige. En WAL, pour que
+    les lectures des autres fils ne soient pas bloquées par l'écriture d'une
+    traduction qui vient d'arriver.
+    """
+
+    def __init__(self, path):
+        self.path = path
+        self._local = threading.local()
+        db = self._db()
+        db.executescript(STORE_SCHEMA)
+        db.commit()
+        # Deux requêtes simultanées sur la même recette inconnue paieraient deux
+        # fois la même traduction. Ce dictionnaire de verrous fait que la
+        # seconde attend et lit le cache que la première vient d'écrire.
+        self._inflight = {}
+        self._inflight_lock = threading.Lock()
+
+    def _db(self):
+        db = getattr(self._local, "db", None)
+        if db is None:
+            db = sqlite3.connect(self.path, timeout=30)
+            db.execute("PRAGMA journal_mode=WAL")
+            db.execute("PRAGMA synchronous=NORMAL")
+            self._local.db = db
+        return db
+
+    def lock_for(self, key):
+        with self._inflight_lock:
+            lk = self._inflight.get(key)
+            if lk is None:
+                lk = self._inflight[key] = threading.Lock()
+            return lk
+
+    # -- lexique ----------------------------------------------------------
+    def lookup(self, names, lang="en"):
+        """Rend {nom brut: traduction} pour ceux qui sont déjà connus."""
+        names = [n for n in names if n]
+        if not names:
+            return {}
+        keys = {norm(n): n for n in names}
+        out = {}
+        db = self._db()
+        # Par paquets : SQLite plafonne le nombre de paramètres d'une requête.
+        ks = list(keys)
+        for i in range(0, len(ks), 400):
+            chunk = ks[i : i + 400]
+            qs = ",".join("?" * len(chunk))
+            for fr, en in db.execute(
+                "SELECT fr, en FROM lexicon WHERE lang=? AND fr IN (%s)" % qs,
+                [lang] + chunk,
+            ):
+                out[keys[fr]] = en
+        return out
+
+    def put(self, rows, source, lang="en"):
+        """rows : itérable de (fr, en). Les termes déjà connus ne bougent pas.
+
+        INSERT OR IGNORE, et non REPLACE : une entrée relue et corrigée à la
+        main ne doit jamais être réécrasée par la machine au prochain passage.
+        Une correction se fait avec --import, qui lui écrase délibérément.
+        """
+        now = int(time.time())
+        vals = [
+            (norm(fr), lang, en.strip(), source, now)
+            for fr, en in rows
+            if fr and en and en.strip() and len(norm(fr)) <= LEXICON_MAX
+        ]
+        if not vals:
+            return 0
+        db = self._db()
+        cur = db.executemany(
+            "INSERT OR IGNORE INTO lexicon(fr, lang, en, source, ts) VALUES(?,?,?,?,?)",
+            vals,
+        )
+        db.commit()
+        return cur.rowcount
+
+    def overwrite(self, rows, source, lang="en"):
+        now = int(time.time())
+        vals = [
+            (norm(fr), lang, en.strip(), source, now)
+            for fr, en in rows
+            if fr and en and en.strip()
+        ]
+        db = self._db()
+        db.executemany(
+            "INSERT OR REPLACE INTO lexicon(fr, lang, en, source, ts) VALUES(?,?,?,?,?)",
+            vals,
+        )
+        db.commit()
+        return len(vals)
+
+    def to_french(self, q, lang="en", maxgram=3):
+        """Ramène une saisie anglaise vers le français de l'index.
+
+        Rend (requête française, mots restés anglais).
+
+        La correspondance est gloutonne sur les groupes de mots, du plus long au
+        plus court, et c'est indispensable : mot à mot, « chicken breast »
+        donnerait « poulet breast », et comme FTS5 exige TOUS les termes d'une
+        requête, la recherche ne rendrait rien. En trigrammes d'abord, elle
+        trouve « blanc de poulet » d'un coup.
+
+        Les mots sans équivalent connu sont gardés tels quels : beaucoup de
+        termes de cuisine passent la frontière sans changer (pizza, risotto,
+        curry), et les jeter appauvrirait la recherche plus que la traduction ne
+        l'enrichit. Ils sont signalés à part pour que l'appelant puisse retenter
+        sans eux si la recherche ne donne rien.
+        """
+        db = self._db()
+        words = [w for w in re.split(r"\W+", q) if w]
+        out, unmapped, i = [], [], 0
+        while i < len(words):
+            for n in range(maxgram, 0, -1):
+                if i + n > len(words):
+                    continue
+                phrase = " ".join(words[i : i + n])
+                if len(phrase) < 2:
+                    continue
+                row = db.execute(
+                    "SELECT fr FROM lexicon WHERE lang=? AND lower(en)=? "
+                    # Le plus court d'abord : « onion » doit rendre « oignon »,
+                    # pas « oignon rouge ».
+                    "ORDER BY length(fr) LIMIT 1",
+                    (lang, phrase.lower()),
+                ).fetchone()
+                if row:
+                    out.append(row[0])
+                    i += n
+                    break
+            else:
+                out.append(words[i])
+                unmapped.append(words[i])
+                i += 1
+        return " ".join(out), unmapped
+
+
+    # -- caches -----------------------------------------------------------
+    def recipe_get(self, rid, lang="en"):
+        row = self._db().execute(
+            "SELECT json FROM recipe_tr WHERE id=? AND lang=?", (rid, lang)
+        ).fetchone()
+        if not row:
+            return None
+        try:
+            return json.loads(row[0])
+        except ValueError:
+            return None
+
+    def recipe_put(self, rid, rec, engine, lang="en"):
+        db = self._db()
+        db.execute(
+            "INSERT OR REPLACE INTO recipe_tr(id, lang, json, engine, ts) VALUES(?,?,?,?,?)",
+            (rid, lang, json.dumps(rec, ensure_ascii=False), engine, int(time.time())),
+        )
+        db.commit()
+
+    def titles_get(self, ids, lang="en"):
+        if not ids:
+            return {}
+        qs = ",".join("?" * len(ids))
+        return {
+            i: t
+            for i, t in self._db().execute(
+                "SELECT id, title FROM title_tr WHERE lang=? AND id IN (%s)" % qs,
+                [lang] + list(ids),
+            )
+        }
+
+    def titles_put(self, rows, lang="en"):
+        now = int(time.time())
+        db = self._db()
+        db.executemany(
+            "INSERT OR REPLACE INTO title_tr(id, lang, title, ts) VALUES(?,?,?,?)",
+            [(i, lang, t, now) for i, t in rows],
+        )
+        db.commit()
+
+    def stats(self, lang="en"):
+        db = self._db()
+        by_source = dict(
+            db.execute(
+                "SELECT source, COUNT(*) FROM lexicon WHERE lang=? GROUP BY source",
+                (lang,),
+            )
+        )
+        return {
+            "lexicon": sum(by_source.values()),
+            "by_source": by_source,
+            "recipes": db.execute(
+                "SELECT COUNT(*) FROM recipe_tr WHERE lang=?", (lang,)
+            ).fetchone()[0],
+            "titles": db.execute(
+                "SELECT COUNT(*) FROM title_tr WHERE lang=?", (lang,)
+            ).fetchone()[0],
+        }
+
+
+def search_queries(store, q, lang="en"):
+    """Les requêtes à essayer, dans l'ordre, pour une saisie anglaise.
+
+    De la plus précise à la plus large, et chacune ne coûte que si la précédente
+    n'a rien rendu :
+
+      1. la saisie ramenée au français par groupes de mots — le cas normal ;
+      2. la saisie brute — « ratatouille », « pizza » et tous les noms de plats
+         qui n'ont jamais eu besoin d'être traduits ;
+      3. la même, sans les mots restés anglais. FTS5 exige tous les termes :
+         un « tikka » resté tel quel dans « chicken tikka » suffirait à tout
+         faire échouer, alors que « poulet » seul rend ce qu'il faut ;
+      4. la traduction mot à mot, sans les mots restés anglais. Celle-ci est
+         volontairement plus large que la première : /search cherche dans les
+         TITRES, et la correspondance par groupes rend la requête plus précise
+         que la saisie ne l'était. « chicken breast » donne « blanc de poulet »,
+         qui ne trouve plus « Poulet au curry » — alors que « chicken » seul le
+         trouvait. Ce dernier essai rattrape exactement ce cas.
+    """
+    fr, unmapped = store.to_french(q, lang)
+    tries = [fr]
+    if q != fr:
+        tries.append(q)
+
+    def without(pair):
+        """La traduction, moins les mots qui n'ont pas su l'être."""
+        text, skip = pair
+        left = " ".join(w for w in text.split() if w not in skip)
+        return left if left and left != text else None
+
+    for cand in (
+        without((fr, unmapped)),
+        without(store.to_french(q, lang, maxgram=1)),
+    ):
+        if cand:
+            tries.append(cand)
+
+    seen, out = set(), []
+    for t in tries:
+        if t and t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
+# --------------------------------------------------------------------------
+# Traduire une fiche
+# --------------------------------------------------------------------------
+ING_CONTEXT = (
+    "Liste d'ingrédients d'une recette de cuisine française. "
+    "Traduire chaque ligne comme un produit alimentaire."
+)
+STEP_CONTEXT = "Étapes de préparation d'une recette de cuisine."
+
+
+def translate_units(rec):
+    """Les unités, par la table. Toujours, et sans jamais toucher au réseau."""
+    for ing in rec.get("ingredients") or []:
+        u = ing.get("unit")
+        if u and u in UNITS_EN:
+            ing["unit"] = UNITS_EN[u]
+
+
+def translate_ingredients(rec, store, tr, lang="en"):
+    """Noms d'ingrédients : lexique d'abord, moteur pour les seuls inconnus.
+
+    C'est ici que se joue la cohérence de la liste de courses. Ce qui sort du
+    moteur est immédiatement écrit au lexique, si bien qu'un terme n'est traduit
+    qu'une fois dans la vie du catalogue : la fiche suivante qui le contient
+    reprendra exactement la même chaîne.
+    """
+    ings = rec.get("ingredients") or []
+    names = [(i.get("name") or "").strip() for i in ings]
+    known = store.lookup(names, lang)
+
+    missing = sorted({n for n in names if n and n not in known})
+    engine = None
+    if missing:
+        got, engine = tr.translate(missing, context=ING_CONTEXT)
+        store.put(zip(missing, got), engine, lang)
+        known.update(dict(zip(missing, got)))
+
+    for ing, n in zip(ings, names):
+        if n in known:
+            ing["name"] = known[n]
+    return engine
+
+
+def translate_recipe(rec, store, tr, lang="en"):
+    """Rend la fiche traduite. Lève TranslationUnavailable si rien ne répond."""
+    rec = json.loads(json.dumps(rec))  # copie : le cache du catalogue est partagé
+
+    translate_units(rec)
+    engine = translate_ingredients(rec, store, tr, lang)
+
+    # Titre et étapes en un seul appel : c'est de la prose, elle n'a pas besoin
+    # du lexique, et un aller-retour vaut mieux que deux.
+    steps = list(rec.get("steps") or [])
+    blob = [rec.get("name") or ""] + steps
+    out, eng2 = tr.translate(blob, context=STEP_CONTEXT)
+    rec["name"] = out[0]
+    if steps:
+        rec["steps"] = out[1:]
+
+    rec["lang"] = lang
+    return rec, (eng2 or engine or "cache")
+
+
+def get_translated(rid, rec, store, tr, lang="en"):
+    """Fiche traduite, du cache si possible. Ne lève jamais.
+
+    Rend (fiche, langue réellement servie). Si la traduction échoue — quota
+    épuisé, LibreTranslate arrêté, réseau coupé — on rend le français. Une
+    recette lisible dans la mauvaise langue reste utilisable ; un écran d'erreur
+    ne l'est pas, et l'utilisateur n'a rien fait de mal.
+    """
+    hit = store.recipe_get(rid, lang)
+    if hit:
+        return hit, lang
+
+    with store.lock_for(("recipe", rid, lang)):
+        # Relecture sous verrou : une requête concurrente vient peut-être de
+        # faire le travail pendant qu'on attendait.
+        hit = store.recipe_get(rid, lang)
+        if hit:
+            return hit, lang
+        try:
+            out, engine = translate_recipe(rec, store, tr, lang)
+        except TranslationUnavailable:
+            return rec, "fr"
+        except Exception as e:
+            sys.stderr.write("Traduction de la recette %s échouée : %s\n" % (rid, e))
+            return rec, "fr"
+        store.recipe_put(rid, out, engine, lang)
+        if out.get("name"):
+            store.titles_put([(rid, out["name"])], lang)
+        return out, lang
+
+
+def translate_titles(rows, store, tr, lang="en"):
+    """rows : [(id, titre)]. Rend {id: titre traduit} — cache compris.
+
+    Appelé par /search. Les titres déjà vus ne repartent pas sur le réseau, et
+    comme ce sont les mêmes recettes qui remontent pour les mêmes recherches, le
+    cache se remplit vite et le coût s'effondre.
+    """
+    ids = [r[0] for r in rows]
+    known = store.titles_get(ids, lang)
+    missing = [(i, t) for i, t in rows if i not in known and t]
+    if missing:
+        try:
+            got, _ = tr.translate([t for _, t in missing], context=STEP_CONTEXT)
+        except TranslationUnavailable:
+            return known
+        except Exception as e:
+            sys.stderr.write("Traduction des titres échouée : %s\n" % e)
+            return known
+        pairs = list(zip([i for i, _ in missing], got))
+        store.titles_put(pairs, lang)
+        known.update(dict(pairs))
+    return known
+
+
+# --------------------------------------------------------------------------
+# Outil en ligne de commande
+# --------------------------------------------------------------------------
+def store_path(db):
+    return db + ".tr"
+
+
+def scan_ingredients(db_path, verbose=True):
+    """Compte les noms d'ingrédients du catalogue, du plus fréquent au moins.
+
+    C'est le chiffre qui décide de tout le reste : il dit combien de termes il
+    faut vraiment traduire pour couvrir l'essentiel des recettes.
+    """
+    db = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True, timeout=30)
+    counts = collections.Counter()
+    n = 0
+    for (blob,) in db.execute(
+        "SELECT recipe FROM urls WHERE status='ok' AND recipe IS NOT NULL"
+    ):
+        try:
+            rec = json.loads(blob) or {}
+        except ValueError:
+            continue
+        n += 1
+        for ing in rec.get("ingredients") or []:
+            name = (ing.get("name") or "").strip()
+            if name and len(name) <= LEXICON_MAX:
+                counts[name] += 1
+        if verbose and n % 20000 == 0:
+            print("  %d fiches lues…" % n, flush=True)
+    db.close()
+    return counts, n
+
+
+def cmd_extract(args, store):
+    counts, n = scan_ingredients(args.db)
+    total = sum(counts.values())
+    known = store.lookup(list(counts), args.lang)
+    covered = sum(c for name, c in counts.items() if name in known)
+
+    print("\n%d fiches, %d occurrences d'ingrédients, %d noms distincts."
+          % (n, total, len(counts)))
+    if total:
+        print("Couverture du lexique actuel : %.1f %% des occurrences "
+              "(%d noms sur %d).\n" % (100.0 * covered / total, len(known), len(counts)))
+
+    # La courbe cumulée, parce que c'est elle qui répond à « combien en
+    # traduire » : sur ce genre de distribution, les premiers pour cent de
+    # termes portent la grande majorité des occurrences.
+    run = 0
+    marks = [200, 500, 1000, 2000, 5000]
+    print("Couverture atteignable en traduisant les N plus fréquents :")
+    for i, (_, c) in enumerate(counts.most_common(), 1):
+        run += c
+        if i in marks:
+            print("  %5d termes → %.1f %%" % (i, 100.0 * run / total))
+    print()
+
+    missing = [(name, c) for name, c in counts.most_common() if name not in known]
+    print("Manquants, les %d plus fréquents :" % min(args.top, len(missing)))
+    for name, c in missing[: args.top]:
+        print("  %6d  %s" % (c, name))
+
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as f:
+            for name, c in missing:
+                f.write("%d\t%s\n" % (c, name))
+        print("\n%d manquants écrits dans %s" % (len(missing), args.out))
+
+
+def cmd_fill(args, store, tr):
+    if not tr.available():
+        raise SystemExit(
+            "Aucun moteur configuré. Pose PANIER_DEEPL_KEY (ou %s.deepl) "
+            "et/ou PANIER_LIBRETRANSLATE_URL." % args.db
+        )
+    counts, _ = scan_ingredients(args.db)
+    known = store.lookup(list(counts), args.lang)
+    missing = [n for n, _ in counts.most_common() if n not in known][: args.fill]
+    if not missing:
+        print("Rien à remplir : tout le catalogue est déjà couvert.")
+        return
+
+    chars = sum(len(m) for m in missing)
+    print("%d termes à traduire (%d caractères) via %s."
+          % (len(missing), chars, tr.describe()))
+    if not args.yes:
+        rep = input("Continuer ? [o/N] ").strip().lower()
+        if rep not in ("o", "oui", "y", "yes"):
+            return
+
+    done = 0
+    for i in range(0, len(missing), BATCH):
+        chunk = missing[i : i + BATCH]
+        try:
+            got, engine = tr.translate(chunk, context=ING_CONTEXT)
+        except TranslationUnavailable as e:
+            print("\nArrêt : plus aucun moteur disponible (%s)." % e)
+            break
+        done += store.put(zip(chunk, got), engine, args.lang)
+        print("  %d/%d…" % (min(i + BATCH, len(missing)), len(missing)), flush=True)
+    print("\n%d entrées ajoutées au lexique." % done)
+    print("Relis-les avant de t'y fier :\n"
+          "  python3 %s --db %s --export lexique.tsv"
+          % (os.path.basename(sys.argv[0]), args.db))
+
+
+def cmd_export(args, store):
+    db = store._db()
+    rows = db.execute(
+        "SELECT fr, en, source FROM lexicon WHERE lang=? ORDER BY source, fr",
+        (args.lang,),
+    ).fetchall()
+    with open(args.export, "w", encoding="utf-8") as f:
+        f.write("# fr\ten\tsource — corrige la 2e colonne, puis --import\n")
+        for fr, en, src in rows:
+            f.write("%s\t%s\t%s\n" % (fr, en, src))
+    print("%d entrées écrites dans %s" % (len(rows), args.export))
+
+
+def cmd_import(args, store):
+    rows = []
+    with open(args.imp, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.rstrip("\n")
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 2 and parts[0].strip() and parts[1].strip():
+                rows.append((parts[0], parts[1]))
+    # « manual » et non la source d'origine : une entrée passée par une relecture
+    # humaine ne doit plus jamais être considérée comme réécrivable.
+    n = store.overwrite(rows, "manual", args.lang)
+    print("%d entrées reprises depuis %s (marquées « manual »)." % (n, args.imp))
+
+
+def main():
+    p = argparse.ArgumentParser(
+        description="Lexique et traduction du catalogue Panier.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__.split("EN LIGNE DE COMMANDE")[-1],
+    )
+    p.add_argument(
+        "--db",
+        default=os.path.expanduser("~/panier-scrape/panier-scrape.sqlite"),
+        help="catalogue produit par scrape-recipes.py",
+    )
+    p.add_argument("--lang", default="en")
+    p.add_argument("--target", default=TARGET_DEFAULT,
+                   help="langue cible DeepL (défaut EN-GB ; EN-US pour l'américain)")
+    p.add_argument("--seed", action="store_true",
+                   help="installe le lexique de base (unités + ~300 ingrédients)")
+    p.add_argument("--extract", action="store_true",
+                   help="mesure la couverture et liste les manquants par fréquence")
+    p.add_argument("--top", type=int, default=60,
+                   help="nombre de manquants affichés par --extract")
+    p.add_argument("--out", help="écrit tous les manquants dans ce fichier TSV")
+    p.add_argument("--fill", type=int, metavar="N",
+                   help="traduit les N termes manquants les plus fréquents")
+    p.add_argument("--yes", action="store_true", help="ne pas demander confirmation")
+    p.add_argument("--export", metavar="TSV", help="sort le lexique pour relecture")
+    p.add_argument("--import", dest="imp", metavar="TSV",
+                   help="reprend un TSV relu (écrase, marque « manual »)")
+    p.add_argument("--stats", action="store_true")
+    p.add_argument("--usage", action="store_true", help="quota DeepL consommé")
+    p.add_argument("--test", metavar="TEXTE", help="essai des moteurs")
+    args = p.parse_args()
+
+    if not os.path.exists(args.db) and not (args.test or args.usage):
+        raise SystemExit("Base introuvable : %s" % args.db)
+
+    store = TrStore(store_path(args.db))
+    tr = Translator.from_env(args.db, args.target)
+
+    if args.seed:
+        n = store.put(SEED.items(), "seed", args.lang)
+        u = store.put(
+            ((k, v) for k, v in UNITS_EN.items() if norm(k) != norm(v)),
+            "seed",
+            args.lang,
+        )
+        print("Lexique de base : %d ingrédients + %d unités ajoutés." % (n, u))
+        print("(les entrées déjà présentes n'ont pas été touchées)")
+    if args.test:
+        print("Moteurs : %s" % tr.describe())
+        out, engine = tr.translate([args.test], context=ING_CONTEXT)
+        print("%s → %s   [%s]" % (args.test, out[0], engine))
+    if args.usage:
+        u = tr.usage()
+        if not u:
+            print("Pas de clé DeepL configurée.")
+        else:
+            lim = u.get("character_limit") or 0
+            used = u.get("character_count") or 0
+            print("DeepL : %d / %d caractères%s"
+                  % (used, lim, " (%.1f %%)" % (100.0 * used / lim) if lim else ""))
+    if args.extract:
+        cmd_extract(args, store)
+    if args.fill:
+        cmd_fill(args, store, tr)
+    if args.export:
+        cmd_export(args, store)
+    if args.imp:
+        cmd_import(args, store)
+    if args.stats:
+        st = store.stats(args.lang)
+        print("Lexique   : %d entrées (%s)"
+              % (st["lexicon"],
+                 ", ".join("%s %d" % kv for kv in sorted(st["by_source"].items()))
+                 or "vide"))
+        print("Recettes  : %d en cache" % st["recipes"])
+        print("Titres    : %d en cache" % st["titles"])
+        print("Moteurs   : %s" % tr.describe())
+
+    if not any([args.seed, args.extract, args.fill, args.export, args.imp,
+                args.stats, args.usage, args.test]):
+        p.print_help()
+
+
+if __name__ == "__main__":
+    main()
