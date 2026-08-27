@@ -746,6 +746,13 @@ def check(args):
     if src == keyfile:
         m = os.stat(keyfile).st_mode & 0o777
         print("                   droits %o%s" % (m, "" if m == 0o600 else "  (attendu 600)"))
+    if tr.deepl_key:
+        # Le choix de l'hôte découle du suffixe de la clé, et une clé gratuite
+        # envoyée à api.deepl.com est l'erreur la plus fréquente — invisible
+        # sans cette ligne.
+        print("                   hôte %s  (clé %s « :fx »)"
+              % (tr._deepl_host(),
+                 "terminée par" if tr.deepl_key.endswith(":fx") else "SANS"))
     print("%s LibreTranslate   %s" % (ok(bool(tr.libre_url)), tr.libre_url or "non configuré"))
 
     if not tr.available():
@@ -760,6 +767,13 @@ def check(args):
     except Exception as e:
         print("  ÉCHEC : %s" % e)
         print("  → c'est CE défaut qui fait servir le français.")
+        if tr.deepl_key:
+            print("\n  Pour savoir si le blocage vient de Python ou du réseau,")
+            print("  la même requête sans passer par ce script :")
+            print("    curl -sv -X POST '%s/v2/usage' \\" % tr._deepl_host())
+            print("      -H \"Authorization: DeepL-Auth-Key $(cat %s)\"" % keyfile)
+            print("  Si curl échoue aussi, c'est le réseau (pare-feu, DNS, TLS).")
+            print("  S'il répond, c'est la version d'OpenSSL de ce Python.")
         return
     try:
         u = tr.usage()

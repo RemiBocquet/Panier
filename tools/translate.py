@@ -63,6 +63,7 @@ EN LIGNE DE COMMANDE
 
 import argparse
 import collections
+import http.client
 import json
 import os
 import re
@@ -670,14 +671,41 @@ class TranslationUnavailable(Exception):
 # --------------------------------------------------------------------------
 # Les moteurs
 # --------------------------------------------------------------------------
-def _post_json(url, payload, headers, timeout):
+USER_AGENT = "Panier/1.0 (+https://panier.remibocquet.fr)"
+
+
+def _post_json(url, payload, headers, timeout, retries=1):
+    """POST JSON, avec une seule reprise sur coupure de connexion.
+
+    La distinction est importante : une réponse HTTP, même 456 ou 403, EST une
+    réponse — la refaire ne changerait rien et consommerait le quota. Une
+    connexion fermée sans réponse, elle, est souvent passagère (« Remote end
+    closed connection without response »), et une seule reprise suffit à
+    éviter qu'une fiche parte en français pour un incident d'une seconde.
+
+    Noter que urllib.error.HTTPError HÉRITE d'URLError : sans le `raise` qui
+    suit, les erreurs HTTP seraient réessayées elles aussi.
+    """
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, method="POST")
-    req.add_header("Content-Type", "application/json")
-    for k, v in headers.items():
-        req.add_header(k, v)
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode("utf-8"))
+    last = None
+    for attempt in range(retries + 1):
+        req = urllib.request.Request(url, data=data, method="POST")
+        req.add_header("Content-Type", "application/json")
+        # Sans User-Agent, urllib s'annonce « Python-urllib/3.x ». Plusieurs
+        # hébergeurs ferment la connexion sur cette signature.
+        req.add_header("User-Agent", USER_AGENT)
+        for k, v in headers.items():
+            req.add_header(k, v)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError:
+            raise
+        except (urllib.error.URLError, http.client.HTTPException, OSError) as e:
+            last = e
+            if attempt < retries:
+                time.sleep(1.0)
+    raise last
 
 
 class Translator:
