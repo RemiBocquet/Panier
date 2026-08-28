@@ -1178,6 +1178,29 @@ class TrStore:
         )
         db.commit()
 
+    def purge(self, what, lang="en"):
+        """Vide un cache. Rend le nombre de lignes supprimées par table.
+
+        Les caches sont jetables par construction — tout se refabrique au
+        prochain import — mais ils gardent des traductions faites sous d'anciennes
+        règles, qui ne se corrigeront jamais d'elles-mêmes. D'où une commande
+        plutôt qu'un SQL à taper : sqlite3 n'est pas installé partout, et ces
+        outils n'ont volontairement aucune dépendance.
+        """
+        tables = {
+            "queries": ["query_tr"],
+            "recipes": ["recipe_tr", "title_tr"],
+            "all": ["query_tr", "recipe_tr", "title_tr"],
+        }[what]
+        db = self._db()
+        out = {}
+        for t in tables:
+            out[t] = db.execute(
+                "DELETE FROM %s WHERE lang=?" % t, (lang,)
+            ).rowcount
+        db.commit()
+        return out
+
     def stale(self, lang="en"):
         """Entrées dont la clé ne correspond plus à norm().
 
@@ -1638,6 +1661,11 @@ def main():
     p.add_argument("--renormalize", action="store_true",
                    help="réécrit les clés du lexique périmées par un changement "
                         "de règle de normalisation")
+    p.add_argument(
+        "--purge", choices=("queries", "recipes", "all"),
+        help="vide un cache : queries (requêtes de recherche), recipes "
+             "(fiches et titres traduits), all. Le lexique n'est JAMAIS touché.",
+    )
     p.add_argument("--stats", action="store_true")
     p.add_argument("--usage", action="store_true", help="quota DeepL consommé")
     p.add_argument("--test", metavar="TEXTE", help="essai des moteurs")
@@ -1684,6 +1712,10 @@ def main():
             used = u.get("character_count") or 0
             print("DeepL : %d / %d caractères%s"
                   % (used, lim, " (%.1f %%)" % (100.0 * used / lim) if lim else ""))
+    if args.purge:
+        n = store.purge(args.purge, args.lang)
+        print("Vidé : %s" % ", ".join("%s %d" % kv for kv in sorted(n.items())))
+        print("Le lexique n'a pas été touché.")
     if args.extract:
         cmd_extract(args, store)
     if args.fill:
@@ -1703,7 +1735,7 @@ def main():
         print("Moteurs   : %s" % tr.describe())
 
     if not any([args.seed, args.extract, args.fill, args.export, args.imp,
-                args.stats, args.usage, args.test, args.renormalize]):
+                args.stats, args.usage, args.test, args.renormalize, args.purge]):
         p.print_help()
 
 
