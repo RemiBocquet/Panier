@@ -66,6 +66,7 @@ import sys
 import threading
 import time
 import unicodedata
+import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -742,6 +743,7 @@ def check(args):
     keyfile = args.db + ".deepl"
     src = ("$PANIER_DEEPL_KEY" if os.environ.get("PANIER_DEEPL_KEY")
            else keyfile if os.path.exists(keyfile) else None)
+    key_ok = False
     print("%s clé DeepL        %s" % (ok(bool(tr.deepl_key)), src or "introuvable"))
     if src == keyfile:
         m = os.stat(keyfile).st_mode & 0o777
@@ -753,11 +755,56 @@ def check(args):
         print("                   hôte %s  (clé %s « :fx »)"
               % (tr._deepl_host(),
                  "terminée par" if tr.deepl_key.endswith(":fx") else "SANS"))
+        # Une clé DeepL est un UUID, éventuellement suivi de « :fx ». Contrôler
+        # sa FORME coûte une ligne et attrape le cas le plus bête et le plus
+        # coûteux à diagnostiquer : le fichier contient encore le texte d'un
+        # exemple copié-collé, et le serveur répond « clé invalide » sans qu'on
+        # ait de raison de soupçonner le fichier.
+        key_ok = bool(re.match(
+            r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}(:fx)?$",
+            tr.deepl_key,
+        ))
+        if not key_ok:
+            print("     ⚠ cette clé n'a pas la forme d'une clé DeepL "
+                  "(UUID, éventuellement suivi de « :fx »).")
+            print("       Vérifie le contenu de %s — il contient peut-être" % keyfile)
+            print("       encore le texte d'un exemple plutôt que ta vraie clé.")
+            if any(ord(c) > 127 for c in tr.deepl_key):
+                # Un en-tête HTTP doit être ASCII. Avec un accent dedans, DeepL
+                # ferme la connexion sans répondre au lieu de renvoyer 403 : on
+                # cherche alors un problème de réseau qui n'existe pas.
+                print("       Elle contient un caractère accentué : l'en-tête HTTP")
+                print("       devient invalide et DeepL ferme la connexion sans")
+                print("       répondre — d'où « Remote end closed connection ».")
     print("%s LibreTranslate   %s" % (ok(bool(tr.libre_url)), tr.libre_url or "non configuré"))
 
     if not tr.available():
         print("\n→ Aucun moteur : le service répondra en français, sans erreur.")
         return
+
+    # Sonde DeepL en direct AVANT l'essai de traduction. La façade translate()
+    # avale l'erreur pour basculer sur le secours — c'est ce qu'on veut en
+    # service, mais ça masque justement le code HTTP qui dit tout ici.
+    if tr.deepl_key and not key_ok:
+        print("NON  DeepL           sonde inutile tant que la clé est mal formée")
+    elif tr.deepl_key:
+        try:
+            u = tr.usage()
+            print("%s DeepL joignable  %s / %s caractères"
+                  % (ok(True), u.get("character_count"), u.get("character_limit")))
+        except urllib.error.HTTPError as e:
+            detail = ""
+            try:
+                detail = json.loads(e.read().decode("utf-8")).get("message", "")
+            except Exception:
+                pass
+            raison = {403: "clé refusée", 456: "quota épuisé",
+                      429: "trop de requêtes"}.get(e.code, "")
+            print("NON  DeepL           HTTP %s%s%s"
+                  % (e.code, "  — %s" % raison if raison else "",
+                     "\n                   %s" % detail if detail else ""))
+        except Exception as e:
+            print("NON  DeepL           injoignable : %s" % e)
 
     print("\nEssai réel (« blanc de poulet », « waffle ») :")
     try:
@@ -770,10 +817,13 @@ def check(args):
         if tr.deepl_key:
             print("\n  Pour savoir si le blocage vient de Python ou du réseau,")
             print("  la même requête sans passer par ce script :")
-            print("    curl -sv -X POST '%s/v2/usage' \\" % tr._deepl_host())
+            # Sans -v : la sortie verbeuse imprime l'en-tête d'autorisation,
+            # donc la clé en clair — qu'on recopie ensuite sans y penser dans
+            # un rapport de bogue ou une conversation.
+            print("    curl -s -o /dev/null -w '%{http_code}\\n' -X POST \\")
+            print("      '%s/v2/usage' \\" % tr._deepl_host())
             print("      -H \"Authorization: DeepL-Auth-Key $(cat %s)\"" % keyfile)
-            print("  Si curl échoue aussi, c'est le réseau (pare-feu, DNS, TLS).")
-            print("  S'il répond, c'est la version d'OpenSSL de ce Python.")
+            print("  403 = clé refusée · 456 = quota épuisé · 000 = réseau bloqué")
         return
     try:
         u = tr.usage()
