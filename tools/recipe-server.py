@@ -21,6 +21,10 @@ CE QUE LE SERVICE EXPOSE
        → la fiche complète, au format attendu par l'import de Panier
   GET  <base>/stats
        → {"total":…}
+  GET  <base>/ping?u=<identifiant d'installation>[&v=3.3.0][&lang=en]
+       → {"ok":true} ; c'est ce qui compte les utilisateurs distincts, voir
+         « Compter les utilisateurs distincts » plus bas. Le rapport se lit
+         avec `--users`, jamais par HTTP : personne d'autre n'a à le connaître.
 
 `lang=en` traduit à la volée, une seule fois par fiche : voir translate.py, qui
 tient le lexique et les caches dans `<db>.tr`. Sans moteur configuré le
@@ -56,6 +60,7 @@ Python 3.7+, bibliothèque standard uniquement.
 
 import argparse
 import base64
+import datetime
 import hashlib
 import hmac
 import json
@@ -209,6 +214,178 @@ class RateLimiter:
                 return False
             self._buckets[key] = (tokens - 1.0, now)
             return True
+
+
+# --------------------------------------------------------------------------
+# Compter les utilisateurs distincts
+#
+# CE QU'ON VEUT SAVOIR, ET CE QU'ON REFUSE DE SAVOIR
+# La seule question posee est « combien de personnes se servent de l'appli ».
+# Pas qui, pas d'ou, pas ce qu'elles cherchent. D'ou trois choix fermes :
+#
+#   1. C'est l'APPLICATION qui s'annonce, une fois par jour, avec un identifiant
+#      qu'elle a tire au sort chez elle (settings.statsId, jamais synchronise
+#      entre appareils). Compter les adresses IP des recherches aurait ete plus
+#      simple et faux des deux cotes : une IP mobile change tous les jours, un
+#      foyer derriere une box n'en a qu'une, et les utilisateurs qui ne
+#      cherchent jamais rien n'apparaitraient pas du tout.
+#   2. L'identifiant n'est PAS stocke tel quel : on en garde un HMAC tronque,
+#      avec la meme cle que les jetons de recette. La base de comptage ne permet
+#      donc pas de reconnaitre un identifiant vu ailleurs, et la perte du
+#      fichier .secret la rend definitivement anonyme.
+#   3. Aucune adresse IP, aucun user-agent, aucune requete n'est enregistree.
+#      Ce qui est ecrit tient en : empreinte, premier jour, dernier jour,
+#      version de l'appli, langue.
+#
+# La base vit a cote du catalogue (`<db>.usage`) et non dedans : le catalogue
+# est ouvert en lecture seule, et le moissonneur le reecrit entierement a chaque
+# moisson — le compteur y serait efface a intervalles reguliers.
+# --------------------------------------------------------------------------
+
+# Au-dela, les journees ne servent plus qu'a alourdir la base : les totaux par
+# utilisateur (premier/dernier jour) restent, eux, pour toujours.
+USAGE_RETENTION_DAYS = 400
+
+# Ce que l'application envoie : 8 a 64 caracteres d'un alphabet sans surprise.
+# Le filtre n'est pas une securite — l'identifiant est signe juste apres — mais
+# il empeche qu'une requete fabriquee remplisse la base de n'importe quoi.
+UID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+
+
+def hash_uid(secret, raw):
+    """Empreinte de l'identifiant d'installation, seule forme conservee."""
+    return hmac.new(secret, raw.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
+
+
+def day_str(offset=0):
+    """Une date au format AAAA-MM-JJ, decalee de `offset` jours."""
+    return (datetime.date.today() + datetime.timedelta(days=offset)).isoformat()
+
+
+class UsageStore:
+    """Deux tables, et pas une de plus.
+
+    `users` repond a « combien de personnes en tout », `days` a « combien
+    aujourd'hui, cette semaine, ce mois ». La seconde est purgee au bout de
+    USAGE_RETENTION_DAYS ; la premiere ne l'est jamais, elle ne grossit que
+    d'une ligne par nouvel utilisateur.
+    """
+
+    SCHEMA = """
+    CREATE TABLE IF NOT EXISTS users(
+        uid       TEXT PRIMARY KEY,
+        first_day TEXT NOT NULL,
+        last_day  TEXT NOT NULL,
+        version   TEXT,
+        lang      TEXT,
+        hits      INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS days(
+        day TEXT NOT NULL,
+        uid TEXT NOT NULL,
+        PRIMARY KEY(day, uid)
+    );
+    CREATE INDEX IF NOT EXISTS days_by_day ON days(day);
+    """
+
+    def __init__(self, path, read_only=False):
+        self.path = path
+        self._lock = threading.Lock()
+        if read_only:
+            # Lecture d'un rapport pendant que le service tourne : surtout ne pas
+            # prendre le verrou d'ecriture de l'autre processus.
+            self.db = sqlite3.connect("file:%s?mode=ro" % path, uri=True, timeout=15)
+        else:
+            self.db = sqlite3.connect(path, timeout=15, check_same_thread=False)
+            # WAL : une lecture (le rapport) ne bloque plus une ecriture (un ping).
+            self.db.execute("PRAGMA journal_mode=WAL")
+            self.db.executescript(self.SCHEMA)
+            self.db.commit()
+        self._purged_on = None
+
+    def touch(self, uid, version=None, lang=None, day=None):
+        """Un passage. Idempotent dans la journee : INSERT OR IGNORE sur `days`."""
+        day = day or day_str()
+        with self._lock:
+            self.db.execute(
+                "INSERT OR IGNORE INTO days(day, uid) VALUES(?, ?)", (day, uid)
+            )
+            # Deux ordres plutot qu'un UPSERT : celui-ci demande SQLite 3.24, que
+            # rien ne garantit sur une machine ancienne. Le cout est nul, une
+            # ecriture par utilisateur et par jour.
+            self.db.execute(
+                "INSERT OR IGNORE INTO users(uid, first_day, last_day) VALUES(?, ?, ?)",
+                (uid, day, day),
+            )
+            self.db.execute(
+                "UPDATE users SET last_day = ?, version = ?, lang = ?, "
+                "hits = hits + 1 WHERE uid = ?",
+                (day, version, lang, uid),
+            )
+            self.db.commit()
+            self._purge(day)
+
+    def _purge(self, day):
+        """Une fois par jour de fonctionnement, pas a chaque ping."""
+        if self._purged_on == day:
+            return
+        self._purged_on = day
+        self.db.execute(
+            "DELETE FROM days WHERE day < ?", (day_str(-USAGE_RETENTION_DAYS),)
+        )
+        self.db.commit()
+
+    def _one(self, sql, params=()):
+        row = self.db.execute(sql, params).fetchone()
+        return row[0] if row else 0
+
+    def total(self):
+        return self._one("SELECT COUNT(*) FROM users")
+
+    def active(self, since):
+        return self._one(
+            "SELECT COUNT(DISTINCT uid) FROM days WHERE day >= ?", (since,)
+        )
+
+    def report(self, days=14):
+        """Tout ce qu'affiche `--users`, en une passe."""
+        daily = {d: n for d, n in self.db.execute(
+            "SELECT day, COUNT(*) FROM days WHERE day >= ? GROUP BY day",
+            (day_str(-days + 1),),
+        )}
+        fresh = {d: n for d, n in self.db.execute(
+            "SELECT first_day, COUNT(*) FROM users WHERE first_day >= ? "
+            "GROUP BY first_day",
+            (day_str(-days + 1),),
+        )}
+        return {
+            "total": self.total(),
+            "today": self.active(day_str()),
+            "week": self.active(day_str(-6)),
+            "month": self.active(day_str(-29)),
+            "new_week": self._one(
+                "SELECT COUNT(*) FROM users WHERE first_day >= ?", (day_str(-6),)
+            ),
+            "new_month": self._one(
+                "SELECT COUNT(*) FROM users WHERE first_day >= ?", (day_str(-29),)
+            ),
+            # Fideles : revenus au moins un jour apres leur arrivee.
+            "returning": self._one(
+                "SELECT COUNT(*) FROM users WHERE last_day > first_day"
+            ),
+            "daily": [
+                (day_str(-i), daily.get(day_str(-i), 0), fresh.get(day_str(-i), 0))
+                for i in range(days - 1, -1, -1)
+            ],
+            "versions": list(self.db.execute(
+                "SELECT COALESCE(version, '?'), COUNT(*) FROM users "
+                "GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+            )),
+            "langs": list(self.db.execute(
+                "SELECT COALESCE(lang, '?'), COUNT(*) FROM users "
+                "GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+            )),
+        }
 
 
 def strip_accents(s):
@@ -445,6 +622,7 @@ class Handler(BaseHTTPRequestHandler):
     strict = True
     store = None        # translate.TrStore, ou None si la traduction est coupée
     translator = None   # translate.Translator
+    usage = None        # UsageStore, ou None si le comptage est coupé
 
     def log_message(self, fmt, *args):
         if self.server.verbose:
@@ -646,6 +824,28 @@ class Handler(BaseHTTPRequestHandler):
                     rid, rec, self.store, self.translator, lang
                 )
             return self._json({"recipe": rec, "lang": lang or "fr"})
+
+        if route == "ping":
+            # L'application s'annonce une fois par jour. Elle n'attend rien de
+            # la réponse : un comptage en panne ne doit pas se voir côté
+            # téléphone, d'où le 200 même quand rien n'est enregistré.
+            if self.usage is None:
+                return self._json({"ok": False})
+            raw = arg("u").strip()
+            if not UID_RE.match(raw):
+                return self._json({"error": "identifiant invalide"}, 400)
+            try:
+                self.usage.touch(
+                    hash_uid(self.secret, raw),
+                    arg("v").strip()[:20] or None,
+                    arg("lang").strip().lower()[:5] or None,
+                )
+            except sqlite3.Error as e:
+                # Base verrouillée ou disque plein : on le dit dans le journal
+                # et on passe. Le catalogue, lui, doit continuer à servir.
+                sys.stderr.write("comptage impossible (%s)\n" % e)
+                return self._json({"ok": False})
+            return self._json({"ok": True})
 
         if route == "stats":
             # Volontairement muet sur la composition du catalogue : le nombre de
@@ -853,6 +1053,37 @@ def check(args):
     print("  grep -c catalogLang <racine web>/index.html    # doit valoir 3")
 
 
+def users(args):
+    """Le rapport que `--users` affiche. Lecture seule : peut tourner pendant
+    que le service sert, sans lui prendre le moindre verrou."""
+    path = usage_path(args)
+    if not os.path.exists(path):
+        raise SystemExit(
+            "Aucun comptage pour l'instant (%s absent).\n"
+            "Le fichier est cree au premier /ping recu par le service." % path
+        )
+    rep = UsageStore(path, read_only=True).report()
+    print("Utilisateurs distincts depuis le debut : %d" % rep["total"])
+    print("  actifs aujourd'hui        : %d" % rep["today"])
+    print("  actifs sur 7 jours        : %d  (dont %d nouveaux)"
+          % (rep["week"], rep["new_week"]))
+    print("  actifs sur 30 jours       : %d  (dont %d nouveaux)"
+          % (rep["month"], rep["new_month"]))
+    print("  revenus au moins un jour  : %d" % rep["returning"])
+    print()
+    print("Jour         actifs  nouveaux")
+    for day, act, new in rep["daily"]:
+        print("%s  %6d  %8d" % (day, act, new))
+    for title, rows in (("Versions", rep["versions"]), ("Langues", rep["langs"])):
+        if rows:
+            print()
+            print("%s : %s" % (title, ", ".join("%s %d" % r for r in rows)))
+
+
+def usage_path(args):
+    return args.usage_db or (args.db + ".usage")
+
+
 def install_help(args):
     print(
         SYSTEMD_UNIT
@@ -908,6 +1139,22 @@ def main():
         help="diagnostique la traduction (index, cache, cle, essai reel) et quitte",
     )
     p.add_argument(
+        "--users",
+        action="store_true",
+        help="affiche le nombre d'utilisateurs distincts de l'application "
+        "(total, actifs du jour, de la semaine, du mois) et quitte",
+    )
+    p.add_argument(
+        "--usage-db",
+        default=None,
+        help="base du comptage d'utilisateurs (defaut : <db>.usage)",
+    )
+    p.add_argument(
+        "--no-usage",
+        action="store_true",
+        help="n'enregistre aucun passage : /ping repond sans rien ecrire",
+    )
+    p.add_argument(
         "--rate",
         type=float,
         default=1.0,
@@ -946,6 +1193,9 @@ def main():
     if args.check:
         return check(args)
 
+    if args.users:
+        return users(args)
+
     if not os.path.exists(args.db):
         raise SystemExit("Base introuvable : %s" % args.db)
 
@@ -956,6 +1206,20 @@ def main():
     Handler.secret = load_secret(args.db)
     Handler.limiter = RateLimiter(args.rate, args.burst)
     Handler.strict = not args.no_origin_check
+
+    # Le comptage s'installe s'il peut, et se tait s'il ne peut pas : un disque
+    # en lecture seule ne doit pas empecher le catalogue de servir, qui reste la
+    # raison d'etre du service.
+    usage_note = "desactive"
+    if not args.no_usage:
+        try:
+            Handler.usage = UsageStore(usage_path(args))
+            usage_note = "%d utilisateurs connus, %d actifs sur 30 jours" % (
+                Handler.usage.total(),
+                Handler.usage.active(day_str(-29)),
+            )
+        except sqlite3.Error as e:
+            usage_note = "indisponible (%s)" % e
 
     # La traduction s'installe si elle peut, et se tait si elle ne peut pas.
     # Un cache illisible ou un module absent ne doivent pas empêcher le
@@ -1004,6 +1268,7 @@ def main():
         flush=True,
     )
     print("Traduction : %s" % tr_note, flush=True)
+    print("Comptage : %s (rapport : --users)" % usage_note, flush=True)
     print("À l'écoute sur http://%s:%d" % (args.host, args.port), flush=True)
     try:
         srv.serve_forever()

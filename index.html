@@ -2882,6 +2882,56 @@ async function addCatalogRecipe(rec){
   recipes.push(nr);await save('recipes',nr);
   return nr;
 }
+/* Compteur d'utilisateurs
+
+   Une seule question posée au serveur qui héberge déjà le catalogue : combien de
+   personnes se servent de l'application. Pas qui, pas d'où, pas quoi.
+
+   L'application tire au sort un numéro à la première ouverture et le garde dans ses
+   réglages — donc sur l'appareil, et hors de la synchro : `settings` ne fait pas
+   partie de SYNCED_STORES, deux téléphones d'un même foyer comptent donc pour deux.
+   C'est bien la question posée : combien d'installations vivantes, pas combien de
+   comptes. Le serveur, lui, n'en garde qu'une empreinte signée — voir « Compter les
+   utilisateurs distincts » dans tools/recipe-server.py : ni le numéro en clair, ni
+   l'adresse IP, ni la moindre recherche.
+
+   Un envoi par jour au maximum, et jamais bloquant : hors ligne, catalogue absent ou
+   comptage refusé, l'application n'en sait rien et continue. Réglages → Application
+   le coupe entièrement. */
+const STATS_ID_LEN=22;   // 22 x 6 bits = 132 bits : aucune collision à redouter
+const STATS_ALPHABET='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const STATS_ID_RE=/^[A-Za-z0-9_-]{8,64}$/;
+/* Le numéro d'installation, créé au premier appel et enregistré AUSSITÔT.
+   L'enregistrer seulement en cas d'envoi réussi paraissait plus économe et
+   fausserait tout : un lancement hors ligne en tirerait un nouveau au suivant,
+   et le même téléphone compterait pour plusieurs personnes. */
+async function statsId(){
+  if(!STATS_ID_RE.test(settings.statsId||'')){
+    const buf=new Uint8Array(STATS_ID_LEN);crypto.getRandomValues(buf);
+    // 64 divise 256 : le modulo ne favorise aucun caractère. Alphabet volontairement
+    // sans '=' ni '+' — il part tel quel dans une URL.
+    settings.statsId=Array.from(buf,b=>STATS_ALPHABET[b&63]).join('');
+    settings.id='app';await dbPut('settings',settings);
+  }
+  return settings.statsId;
+}
+async function pingStats(){
+  if(settings.statsOptOut)return;
+  const today=new Date().toISOString().slice(0,10);
+  if(settings.statsDay===today)return;
+  const id=await statsId();
+  try{
+    const r=await fetch(catalogBase()+'/ping?u='+encodeURIComponent(id)
+      +'&v='+encodeURIComponent(APP_VERSION)+'&lang='+encodeURIComponent(LANG),
+      {headers:{'Accept':'application/json'}});
+    if(!r.ok)return;
+    // La journée n'est retenue qu'en cas de succès : un lancement hors ligne
+    // réessaie au suivant plutôt que de sauter la journée.
+    settings.statsDay=today;settings.id='app';
+    await dbPut('settings',settings);
+  }catch(e){/* hors ligne, ou serveur muet : rien à signaler, rien à réparer */}
+}
+
 function openCatalogSearch(prefill){
   openSheet(T('Chercher une recette'),c=>{
     const hint=el('div','hint');
@@ -4431,7 +4481,7 @@ function openChangelog(prevVersion){
 }
 
 /* Mises à jour de l'application */
-const APP_VERSION='3.2.2';
+const APP_VERSION='3.3.0';
 let _swReg=null,_reloading=false;
 
 function showUpdateBanner(worker){
@@ -5039,6 +5089,7 @@ const EN={
   'Le bouton « Nouvelle » devient « Créer ma recette » et rassemble la saisie à la main, l’import depuis un lien, la photo (OCR) et TheMealDB.':'The “New” button becomes “Create my recipe” and gathers manual entry, importing from a link, the photo (OCR) and TheMealDB.',
   'Nouveau : en anglais, les recettes du catalogue arrivent traduites. La recherche comprend l’anglais aussi.':'New: in English, catalogue recipes now arrive translated. Search understands English too.',
   'Correction: Pré-traduction des termes les plus utilisés, et prise en compte des différents apostrophes.':'Fixed: Pre-translation of the most used words. Now handles apostrophes.',
+  'Nouveau : les Réglages permettent de ne pas être compté (Application → « Compter mon appareil »).':'New: Settings let you opt out of being counted (Application → “Count this device”).',
 };
 /* Les mots-clés de péremption tirent leur libellé anglais de leur premier alias : inutile
    de répéter ici les 150 lignes de SHELF_ALIASES. */
@@ -5076,6 +5127,9 @@ async function boot(){
   initMoveBanner();
   initServiceWorker();
   purgeTombstones().catch(()=>{});
+  // Ni attendu ni bloquant : le premier rendu est deja fait, et un comptage en
+  // panne ne doit rien changer a l'application.
+  pingStats().catch(()=>{});
   if(syncEnabled()){
     syncRun(false);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncRun(false);});

@@ -304,6 +304,49 @@ restauration de sauvegarde ci-dessus, cet import **ajoute** les recettes reçues
 rien remplacer ni supprimer. Les doublons (même nom, insensible à la casse et aux accents) sont
 ignorés plutôt que dupliqués.
 
+## Combien de personnes utilisent l'application
+
+Réglages → **Application** → `☑ Compter mon appareil dans le nombre d'utilisateurs`.
+
+Une fois par jour au maximum, au lancement, l'app appelle `/api/recipes/ping` sur le serveur
+qui héberge déjà le catalogue, avec un **numéro tiré au sort à l'installation** (132 bits,
+`settings.statsId`). C'est tout ce qui part : ce numéro, la version de l'app et la langue.
+Aucune recette, aucune liste, aucune adresse. L'appel n'est jamais bloquant — hors ligne ou
+serveur muet, l'application ne s'en aperçoit pas.
+
+Ce que le serveur conserve, dans une base à part (`<db>.usage`, jamais exposée par HTTP) :
+
+| Gardé | Pas gardé |
+|---|---|
+| une **empreinte HMAC** du numéro (clé de `<db>.secret`) | le numéro en clair |
+| premier jour vu, dernier jour vu | l'adresse IP, le user-agent |
+| version de l'app, langue | les recherches, les recettes importées |
+
+Le numéro vit dans `settings`, qui **n'est pas** dans `SYNCED_STORES` : deux téléphones d'un
+même foyer comptent pour deux. C'est bien la question posée — combien d'installations
+vivantes, pas combien de comptes. Corollaire : restaurer une sauvegarde JSON sur un second
+appareil y recopie le numéro, et les deux appareils n'en font plus qu'un pour le compteur.
+
+Le décompte se lit **sur le Pi, en ligne de commande** — il n'existe aucune route HTTP pour
+l'obtenir, personne d'autre n'a à le connaître :
+
+```bash
+python3 ~/Panier/tools/recipe-server.py \
+        --db ~/panier-scrape/panier-scrape.sqlite --users
+```
+
+```
+Utilisateurs distincts depuis le debut : 37
+  actifs aujourd'hui        : 9
+  actifs sur 7 jours        : 24  (dont 3 nouveaux)
+  actifs sur 30 jours       : 31  (dont 11 nouveaux)
+  revenus au moins un jour  : 26
+```
+
+La ligne « revenus au moins un jour » est la plus parlante : elle sépare ceux qui ont ouvert
+l'app une fois de ceux qui s'en servent vraiment. `--no-usage` coupe l'enregistrement côté
+serveur ; la case des Réglages le coupe côté téléphone.
+
 ## Signaler un bug ou proposer une idée
 
 Réglages → **🐛 Signaler un bug / proposer une idée** : un message vers
