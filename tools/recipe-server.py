@@ -80,10 +80,21 @@ from urllib.parse import parse_qs, urlparse
 # laisse passer. Le service planterait au démarrage au lieu de faire ce pour
 # quoi ce garde-fou existe : servir le français et se taire.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+#
+# Le filet est volontairement LARGE — un except Exception nu, ce qu'on s'interdit
+# partout ailleurs. La raison tient à ce que ce module est facultatif : quelle
+# que soit la façon dont son chargement échoue, le service doit servir le
+# français, jamais refuser de démarrer. Or les modes d'échec ne se ressemblent
+# pas : ImportError s'il est absent, PermissionError s'il est illisible, et
+# SyntaxError si une copie a été tronquée en route — et cette dernière n'est ni
+# un ImportError ni un OSError, elle passait donc au travers.
 try:
     import translate as tr_mod
-except (ImportError, OSError) as _e:  # pragma: no cover
-    sys.stderr.write("translate.py indisponible (%s) : pas de traduction.\n" % _e)
+except Exception as _e:  # pragma: no cover
+    sys.stderr.write(
+        "translate.py inutilisable (%s: %s) : le service démarre sans "
+        "traduction.\n" % (type(_e).__name__, _e)
+    )
     tr_mod = None
 
 # Origines autorisées à appeler ce service depuis un navigateur. Même liste que
