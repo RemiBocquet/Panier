@@ -783,11 +783,16 @@ class Translator:
             else "https://api.deepl.com"
         )
 
-    def _deepl(self, texts, context=None):
+    def _deepl(self, texts, context=None, reverse=False):
+        # `reverse` inverse le sens : EN→FR au lieu de FR→EN. Il ne sert qu'à
+        # une chose, mais elle est indispensable — ramener une saisie de
+        # recherche anglaise vers le français de l'index. Sans lui, « waffle »
+        # partait en FR→EN, revenait inchangé, et la recherche ne trouvait
+        # jamais « gaufre ».
         payload = {
             "text": texts,
-            "source_lang": "FR",
-            "target_lang": self.target,
+            "source_lang": "EN" if reverse else "FR",
+            "target_lang": "FR" if reverse else self.target,
         }
         if context:
             # `context` oriente la traduction sans être traduit lui-même. C'est
@@ -813,11 +818,11 @@ class Translator:
             return json.loads(r.read().decode("utf-8"))
 
     # -- LibreTranslate ---------------------------------------------------
-    def _libre(self, texts):
+    def _libre(self, texts, reverse=False):
         payload = {
             "q": texts,
-            "source": "fr",
-            "target": "en",
+            "source": "en" if reverse else "fr",
+            "target": "fr" if reverse else "en",
             "format": "text",
         }
         if self.libre_key:
@@ -844,8 +849,12 @@ class Translator:
         ]
 
     # -- Façade -----------------------------------------------------------
-    def translate(self, texts, context=None):
+    def translate(self, texts, context=None, reverse=False):
         """Traduit une liste de textes. Rend (résultats, nom du moteur).
+
+        `reverse=True` traduit EN→FR au lieu de FR→EN. Le seul appelant est la
+        traduction des requêtes de recherche, qui va dans l'autre sens que tout
+        le reste de ce fichier.
 
         Les chaînes vides ne partent pas sur le réseau : les étapes d'une
         recette en contiennent régulièrement, et les envoyer coûterait des
@@ -862,7 +871,9 @@ class Translator:
             deepl_ok = self.deepl_key and time.time() >= self._deepl_muted_until
         if deepl_ok:
             try:
-                out, engine = self._chunked(self._deepl, payload, context), "deepl"
+                out, engine = self._chunked(
+                    lambda ts: self._deepl(ts, context, reverse), payload
+                ), "deepl"
             except Exception as e:
                 # 456 = quota épuisé, 403 = clé refusée : inutile d'insister
                 # avant un moment. Le reste (réseau, 5xx) peut être passager,
@@ -876,7 +887,9 @@ class Translator:
 
         if out is None and self.libre_url:
             try:
-                out, engine = self._chunked(self._libre, payload), "libretranslate"
+                out, engine = self._chunked(
+                    lambda ts: self._libre(ts, reverse), payload
+                ), "libretranslate"
             except Exception as e:
                 sys.stderr.write("LibreTranslate indisponible (%s).\n" % e)
 
@@ -888,10 +901,10 @@ class Translator:
             merged[i] = t
         return merged, engine
 
-    def _chunked(self, fn, texts, *extra):
+    def _chunked(self, fn, texts):
         out = []
         for i in range(0, len(texts), BATCH):
-            out.extend(fn(texts[i : i + BATCH], *extra))
+            out.extend(fn(texts[i : i + BATCH]))
         if len(out) != len(texts):
             raise ValueError("le moteur a rendu %d textes pour %d" % (len(out), len(texts)))
         return out
@@ -1279,10 +1292,9 @@ def search_queries(store, q, lang="en"):
 # --------------------------------------------------------------------------
 # Traduire une fiche
 # --------------------------------------------------------------------------
-QUERY_CONTEXT = (
-    "Nom d'un plat ou d'une recette de cuisine, saisi dans un moteur de "
-    "recherche. Répondre par le seul nom du plat."
-)
+# Rédigé en anglais, contrairement aux autres : `context` doit être dans la
+# langue SOURCE pour éclairer le texte à traduire, et celui-ci est anglais.
+QUERY_CONTEXT = "The name of a dish or recipe, typed into a recipe search box."
 
 
 def translated_query(store, tr, q, lang="en"):
@@ -1304,7 +1316,10 @@ def translated_query(store, tr, q, lang="en"):
     if hit is not None:
         return hit or None
     try:
-        got, _ = tr.translate([q], context=QUERY_CONTEXT)
+        # reverse : c'est le SEUL endroit du fichier qui traduit EN→FR. Tout le
+        # reste va du catalogue français vers l'anglais ; ici on ramène la
+        # saisie de l'utilisateur vers la langue de l'index.
+        got, _ = tr.translate([q], context=QUERY_CONTEXT, reverse=True)
     except TranslationUnavailable:
         return None
     except Exception as e:

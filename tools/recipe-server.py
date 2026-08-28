@@ -607,7 +607,11 @@ class Handler(BaseHTTPRequestHandler):
                 for r in results:
                     if r["id"] in titles:
                         r["name"] = titles[r["id"]]
-            return self._json({"results": results})
+            # La langue réellement servie, comme sur /recipe. Sans elle, un
+            # `curl` ne distingue pas « le serveur ignore lang=en » de « le
+            # client ne l'envoie pas » — deux pannes très différentes qui se
+            # ressemblent trait pour trait.
+            return self._json({"results": results, "lang": lang or "fr"})
 
         if route == "recipe":
             try:
@@ -962,6 +966,11 @@ def main():
         except Exception as e:
             tr_note = "indisponible (%s)" % e
 
+    # Le chemin du script, dans le journal, à chaque démarrage. Plusieurs copies
+    # de tools/ sur une machine, dont une seule à jour, est une panne coûteuse à
+    # trouver : le service sert le français en silence pendant qu'un --check
+    # lancé à la main, sur l'autre copie, affiche tout en vert.
+    print("Script : %s" % os.path.abspath(sys.argv[0]), flush=True)
     st = Handler.catalog.stats()
     print(
         "Catalogue : %d recettes (%s), moteur %s"
